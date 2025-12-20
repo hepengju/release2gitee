@@ -211,15 +211,15 @@ fn upload_release_asserts(
     for asset in &release.assets {
         let file_path = &format!("{}/{}", &release.tag_name, &asset.name);
 
-        // 检查文件是否存在
-        if !Path::new(file_path).exists() {
-            error!("本地文件不存在，跳过上传: {}", file_path);
+        // 如果文件已存在则跳过上传
+        if let Some(_) = gitee_release.assets.iter().find(|a| a.name == asset.name) {
+            info!("Gitee附件文件已存在，忽略上传: {}", &asset.name);
             continue;
         }
 
-        // 如果文件已存在则跳过上传
-        if let Some(_) = gitee_release.assets.iter().find(|a| a.name == asset.name) {
-            info!("Gitee附件文件已存在，跳过上传: {}", &asset.name);
+        // 检查文件是否存在
+        if !Path::new(file_path).exists() {
+            error!("本地文件不存在，跳过上传: {}", file_path);
             continue;
         }
 

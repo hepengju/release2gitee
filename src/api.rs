@@ -4,7 +4,7 @@ use indicatif::{ProgressBar, ProgressStyle};
 use log::{error, info};
 use reqwest::blocking::{Client, Response, multipart};
 use std::fs;
-use std::fs::{File};
+use std::fs::File;
 use std::io::{Read, Write};
 use std::path::Path;
 
@@ -27,7 +27,8 @@ pub fn github_releases(client: &Client, cli: &Cli) -> anyhow::Result<Vec<Release
     }
 
     let result = response.text()?;
-    let releases: Vec<Release> = serde_json::from_str(&result)?;
+    let mut releases: Vec<Release> = serde_json::from_str(&result)?;
+    releases.reverse();
     info!(
         "Github仓库releases获取最近的{}个成功: {}",
         releases.len(),
@@ -50,7 +51,8 @@ pub fn gitee_releases(client: &Client, cli: &Cli) -> anyhow::Result<Vec<Release>
     }
 
     let result = response.text()?;
-    let releases: Vec<Release> = serde_json::from_str(&result)?;
+    let mut releases: Vec<Release> = serde_json::from_str(&result)?;
+    releases.reverse();
     info!(
         "Gitee仓库releases信息获取{}个: {}",
         releases.len(),
@@ -75,7 +77,6 @@ pub fn sync_gitee_release(
     release: &Release,
     er: Option<&Release>,
 ) -> anyhow::Result<()> {
-
     // 如果gitee的release不存在则创建
     let gitee_release = if er.is_none() {
         &gitee_release_create(client, cli, &release)?
@@ -85,7 +86,6 @@ pub fn sync_gitee_release(
 
     // 下载github附件到本地
     download_release_asserts(client, cli, release, gitee_release)?;
-
 
     // 上传附件到gitee
     upload_release_asserts(client, cli, release, gitee_release)?;
@@ -115,7 +115,12 @@ fn gitee_release_create(client: &Client, cli: &Cli, release: &Release) -> anyhow
 }
 
 /// 下载附件
-fn download_release_asserts(client: &Client, cli: &Cli, release: &Release, gitee_release: &Release) -> anyhow::Result<()> {
+fn download_release_asserts(
+    client: &Client,
+    cli: &Cli,
+    release: &Release,
+    gitee_release: &Release,
+) -> anyhow::Result<()> {
     info!("创建目录: {}", &release.tag_name);
     if !Path::new(&release.tag_name).exists() {
         fs::create_dir(&release.tag_name)?;
@@ -181,7 +186,10 @@ fn download_release_asserts(client: &Client, cli: &Cli, release: &Release, gitee
                 let content = fs::read_to_string(&file_path)?;
                 // https://github.com/hepengju/redis-me
                 // https://gitee.com/hepengju/redis-me
-                let src = format!("https://github.com/{}/{}", cli.github_owner, cli.github_repo);
+                let src = format!(
+                    "https://github.com/{}/{}",
+                    cli.github_owner, cli.github_repo
+                );
                 let tar = format!("https://gitee.com/{}/{}", cli.gitee_owner, cli.gitee_repo);
                 let content = content.replace(&src, &tar);
                 fs::write(&file_path, content)?;
@@ -194,7 +202,12 @@ fn download_release_asserts(client: &Client, cli: &Cli, release: &Release, gitee
 }
 
 /// 上传附件
-fn upload_release_asserts(client: &Client, cli: &Cli, release: &Release, gitee_release: &Release) -> anyhow::Result<()> {
+fn upload_release_asserts(
+    client: &Client,
+    cli: &Cli,
+    release: &Release,
+    gitee_release: &Release,
+) -> anyhow::Result<()> {
     for asset in &release.assets {
         let file_path = &format!("{}/{}", &release.tag_name, &asset.name);
 
@@ -216,8 +229,7 @@ fn upload_release_asserts(client: &Client, cli: &Cli, release: &Release, gitee_r
             GITEE_API_URL, cli.gitee_owner, cli.gitee_repo, gitee_release.id,
         );
 
-        let form = multipart::Form::new()
-            .file("file", file_path)?;
+        let form = multipart::Form::new().file("file", file_path)?;
 
         // 上传文件到Gitee
         let upload_response = client

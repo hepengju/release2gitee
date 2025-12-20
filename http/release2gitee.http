@@ -1,0 +1,52 @@
+@github_api=https://api.github.com/repos
+@gitee_api=https://gitee.com/api/v5/repos
+
+# 变量定义
+@github_owner=hepengju
+@github_repo=redis-me
+@gitee_owner=hepengju
+@gitee_repo=redis-me
+@gitee_token={{$env.GITEE_TOKEN}}
+
+### 获取Github仓库Releases信息
+#https://docs.github.com/zh/rest/releases/releases?apiVersion=2022-11-28#list-releases
+#可以指定page和per_page,每页大小最大100, 结果是倒序的
+GET {{github_api}}/{{github_owner}}/{{github_repo}}/releases?per_page=5&page=1
+
+### 获取Github仓库Release详细信息
+< {%
+  request.variables.set("release_id", "271702876")
+%}
+GET {{github_api}}/{{github_owner}}/{{github_repo}}/releases/{{release_id}}
+
+### 获取Gitee仓库Releases信息
+#https://gitee.com/api/v5/swagger#/getV5ReposOwnerRepoReleases
+GET {{gitee_api}}/{{gitee_owner}}/{{gitee_repo}}/releases?per_page=5&page=1
+
+### 创建Gitee仓库Release
+#https://gitee.com/api/v5/swagger#/postV5ReposOwnerRepoReleases
+POST {{gitee_api}}/{{gitee_owner}}/{{gitee_repo}}/releases
+Content-Type: application/json
+
+{
+  "access_token": "{{gitee_token}}",
+  "tag_name": "v0.0.4",
+  "name": "release",
+  "body": "测试创建Release 0.0.4",
+  "prerelease": "false",
+  "target_commitish": "b3d69331565727988cb0962d4aa5d08d5517c2c9"
+}
+
+### 删除Gitee仓库Release
+#https://gitee.com/api/v5/swagger#/deleteV5ReposOwnerRepoReleasesId
+< {%
+  request.variables.set("release_id", "559847")
+%}
+DELETE {{gitee_api}}/{{gitee_owner}}/{{gitee_repo}}/releases/{{release_id}}
+Content-Type: application/json
+
+{
+  "access_token": "{{gitee_token}}"
+}
+
+

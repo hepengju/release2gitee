@@ -75,8 +75,6 @@ pub fn sync_gitee_release(
     release: &Release,
     er: Option<&Release>,
 ) -> anyhow::Result<()> {
-    // 下载github附件到本地
-    download_release_asserts(client, cli, release)?;
 
     // 如果gitee的release不存在则创建
     let gitee_release = if er.is_none() {
@@ -84,6 +82,10 @@ pub fn sync_gitee_release(
     } else {
         er.unwrap()
     };
+
+    // 下载github附件到本地
+    download_release_asserts(client, cli, release, gitee_release)?;
+
 
     // 上传附件到gitee
     upload_release_asserts(client, cli, release, gitee_release)?;
@@ -113,13 +115,18 @@ fn gitee_release_create(client: &Client, cli: &Cli, release: &Release) -> anyhow
 }
 
 /// 下载附件
-fn download_release_asserts(client: &Client, cli: &Cli, release: &Release) -> anyhow::Result<()> {
+fn download_release_asserts(client: &Client, cli: &Cli, release: &Release, gitee_release: &Release) -> anyhow::Result<()> {
     info!("创建目录: {}", &release.tag_name);
     if !Path::new(&release.tag_name).exists() {
         fs::create_dir(&release.tag_name)?;
     }
 
     for asset in &release.assets {
+        if let Some(_) = gitee_release.assets.iter().find(|a| a.name == asset.name) {
+            info!("Gitee附件文件已存在，忽略下载: {}", &asset.name);
+            continue;
+        }
+
         // 先判断文件是否存在，存在且大小一致则忽略下载
         let file_path = format!("{}/{}", &release.tag_name, &asset.name);
         if Path::new(&file_path).exists() {

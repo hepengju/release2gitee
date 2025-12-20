@@ -51,8 +51,7 @@ pub fn gitee_releases(client: &Client, cli: &Cli) -> anyhow::Result<Vec<Release>
     }
 
     let result = response.text()?;
-    let mut releases: Vec<Release> = serde_json::from_str(&result)?;
-    releases.reverse();
+    let releases: Vec<Release> = serde_json::from_str(&result)?;
     info!(
         "Gitee仓库releases信息获取{}个: {}",
         releases.len(),

@@ -2,6 +2,8 @@
   <dictionary name="project">
     <words>
       <w>Gitee</w>
+      <w>commitish</w>
+      <w>reqwest</w>
     </words>
   </dictionary>
 </component>

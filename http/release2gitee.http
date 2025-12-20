@@ -49,6 +49,9 @@ Content-Type: application/json
   "access_token": "{{gitee_token}}"
 }
 
+### 下载Github的附件到本地
+GET https://github.com/hepengju/redis-me/releases/download/v0.1.7/latest.json
+
 ### 上传附件到Gitee仓库Release
 #https://gitee.com/api/v5/swagger#/postV5ReposOwnerRepoReleasesReleaseIdAttachFiles
 < {%

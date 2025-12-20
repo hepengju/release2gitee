@@ -7,11 +7,7 @@ use clap::Parser;
 use env_logger::Env;
 use reqwest::blocking::Client;
 use std::time::Duration;
-use reqwest::retry;
 
-const GITHUB_API_URL: &str = "https://api.github.com/repos";
-const GITEE_API_URL: &str = "https://gitee.com/api/v5/repos";
-const USER_AGENT: &str = "reqwest";
 
 fn main() -> anyhow::Result<()> {
     // 默认日志级别改为INFO
@@ -19,8 +15,7 @@ fn main() -> anyhow::Result<()> {
 
     let cli = &Cli::parse();
 
-    let client = &Client::builder()
-        .timeout(Duration::from_mins(1)).build()?;
+    let client = &Client::builder().timeout(Duration::from_mins(1)).build()?;
 
     // 1.获取github的releases信息
     let github_releases = github_releases(client, cli)?;

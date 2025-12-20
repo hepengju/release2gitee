@@ -1,13 +1,16 @@
 use crate::model::{Cli, Release};
-use crate::{GITEE_API_URL, GITHUB_API_URL, USER_AGENT};
 use anyhow::bail;
-use indicatif::ProgressBar;
+use indicatif::{ProgressBar, ProgressStyle};
 use log::{error, info};
 use reqwest::blocking::{Client, Response, multipart};
 use std::fs;
-use std::fs::{File, write};
+use std::fs::{File};
 use std::io::{Read, Write};
 use std::path::Path;
+
+const GITHUB_API_URL: &str = "https://api.github.com/repos";
+const GITEE_API_URL: &str = "https://gitee.com/api/v5/repos";
+const USER_AGENT: &str = "reqwest";
 
 /// 获取Github仓库Releases信息
 pub fn github_releases(client: &Client, cli: &Cli) -> anyhow::Result<Vec<Release>> {
@@ -73,20 +76,22 @@ pub fn sync_gitee_release(
     er: Option<&Release>,
 ) -> anyhow::Result<()> {
     // 下载github附件到本地
-    download_release_asserts(client, release)?;
+    download_release_asserts(client, cli, release)?;
 
     // 如果gitee的release不存在则创建
-    if er.is_none() {
-        gitee_release_create(client, cli, &release)?;
-    }
+    let gitee_release = if er.is_none() {
+        &gitee_release_create(client, cli, &release)?
+    } else {
+        er.unwrap()
+    };
 
     // 上传附件到gitee
-    upload_release_asserts(client, cli, &release)?;
+    upload_release_asserts(client, cli, release, gitee_release)?;
     Ok(())
 }
 
 /// gitee创建Release
-fn gitee_release_create(client: &Client, cli: &Cli, release: &Release) -> anyhow::Result<()> {
+fn gitee_release_create(client: &Client, cli: &Cli, release: &Release) -> anyhow::Result<Release> {
     let response: Response = client
         .post(format!(
             "{}/{}/{}/releases",
@@ -101,16 +106,19 @@ fn gitee_release_create(client: &Client, cli: &Cli, release: &Release) -> anyhow
         bail!("Gitee仓库Release创建失败: {}!", &release.tag_name)
     }
 
+    let result = response.text()?;
+    let release: Release = serde_json::from_str(&result)?;
     info!("Gitee仓库Release创建成功: {}!", &release.tag_name);
-    Ok(())
+    Ok(release)
 }
 
-/// 下载Github Release的附件
-fn download_release_asserts(client: &Client, release: &Release) -> anyhow::Result<()> {
+/// 下载附件
+fn download_release_asserts(client: &Client, cli: &Cli, release: &Release) -> anyhow::Result<()> {
     info!("创建目录: {}", &release.tag_name);
-    fs::create_dir(&release.tag_name)?;
+    if !Path::new(&release.tag_name).exists() {
+        fs::create_dir(&release.tag_name)?;
+    }
 
-    info!("开始下载附件");
     for asset in &release.assets {
         // 先判断文件是否存在，存在且大小一致则忽略下载
         let file_path = format!("{}/{}", &release.tag_name, &asset.name);
@@ -132,36 +140,45 @@ fn download_release_asserts(client: &Client, release: &Release) -> anyhow::Resul
             .header("User-Agent", USER_AGENT)
             .send()?;
 
-        // 获取内容长度用于进度条
-        let total_size = response.content_length().unwrap_or(0);
-        let pb = ProgressBar::new(total_size);
-
-        // 创建文件
-        let mut file = File::create(file_path)?;
-
-        // 下载并更新进度
-        // 分块读取、写入并更新进度
-        let mut buffer = [0u8; 8192]; // 8KB 缓冲区
-        loop {
-            let n = response.read(&mut buffer)?;
-            if n == 0 {
-                break;
-            }
-            file.write_all(&buffer[..n])?;
-            pb.inc(n as u64);
-        }
-
-        pb.finish_with_message("下载完成");
-
-        let response = client
-            .get(&asset.browser_download_url)
-            .header("User-Agent", USER_AGENT)
-            .send()?;
-
         if response.status().is_success() {
-            let file_content = response.bytes()?;
-            write(&asset.name, file_content)?;
+            // 获取内容长度用于进度条
+            let total_size = response.content_length().unwrap_or(0);
+            let pb = ProgressBar::new(total_size);
+
+            pb.set_style(
+                ProgressStyle::with_template(
+                    "{elapsed_precise:.white.dim} {wide_bar:.cyan} {bytes}/{total_bytes} ({bytes_per_sec}, {eta})",
+                )?.progress_chars("█▉▊▋▌▍▎▏  "),
+            );
+
+            // 创建文件
+            let mut file = File::create(&file_path)?;
+
+            // 下载并更新进度
+            // 分块读取、写入并更新进度
+            let mut buffer = [0u8; 8192]; // 8KB 缓冲区
+            loop {
+                let n = response.read(&mut buffer)?;
+                if n == 0 {
+                    break;
+                }
+                file.write_all(&buffer[..n])?;
+                pb.inc(n as u64);
+            }
+            pb.finish_with_message("");
             info!("下载附件成功: {}", &asset.name);
+
+            // 如果是latest.json, 则替换其中的下载地址
+            if asset.name == "latest.json" {
+                info!("latest.json文件替换里面的下载地址");
+                let content = fs::read_to_string(&file_path)?;
+                // https://github.com/hepengju/redis-me
+                // https://gitee.com/hepengju/redis-me
+                let src = format!("https://github.com/{}/{}", cli.github_owner, cli.github_repo);
+                let tar = format!("https://gitee.com/{}/{}", cli.gitee_owner, cli.gitee_repo);
+                let content = content.replace(&src, &tar);
+                fs::write(&file_path, content)?;
+            }
         } else {
             error!("下载附件失败: {}", &asset.name);
         }
@@ -169,42 +186,44 @@ fn download_release_asserts(client: &Client, release: &Release) -> anyhow::Resul
     Ok(())
 }
 
-// 上传Github Release的附件
-fn upload_release_asserts(client: &Client, cli: &Cli, release: &Release) -> anyhow::Result<()> {
+/// 上传附件
+fn upload_release_asserts(client: &Client, cli: &Cli, release: &Release, gitee_release: &Release) -> anyhow::Result<()> {
     for asset in &release.assets {
+        let file_path = &format!("{}/{}", &release.tag_name, &asset.name);
+
         // 检查文件是否存在
-        if !Path::new(&asset.name).exists() {
-            error!("本地文件不存在，跳过上传: {}", &asset.name);
+        if !Path::new(file_path).exists() {
+            error!("本地文件不存在，跳过上传: {}", file_path);
+            continue;
+        }
+
+        // 如果文件已存在则跳过上传
+        if let Some(_) = gitee_release.assets.iter().find(|a| a.name == asset.name) {
+            info!("Gitee附件文件已存在，跳过上传: {}", &asset.name);
             continue;
         }
 
         // 构造上传URL
         let upload_url = format!(
             "{}/{}/{}/releases/{}/attach_files",
-            GITEE_API_URL, cli.gitee_owner, cli.gitee_repo, release.tag_name,
+            GITEE_API_URL, cli.gitee_owner, cli.gitee_repo, gitee_release.id,
         );
 
-        let form = multipart::Form::new().file("file", &asset.name)?;
+        let form = multipart::Form::new()
+            .file("file", file_path)?;
 
         // 上传文件到Gitee
         let upload_response = client
             .post(&upload_url)
             .header("Authorization", format!("token {}", cli.gitee_token))
-            .header("Content-Type", "application/octet-stream")
             .multipart(form)
             .send()?;
 
         if upload_response.status().is_success() {
             info!("上传附件到Gitee成功: {}", &asset.name);
-
-            // 删除本地临时文件
-            if let Err(e) = fs::remove_file(&asset.name) {
-                error!("删除临时文件失败: {}, 错误: {}", &asset.name, e);
-            }
         } else {
-            error!("上传附件到Gitee失败: {}", &asset.name,);
+            error!("上传附件到Gitee失败: {}", &asset.name);
         }
     }
-
     Ok(())
 }

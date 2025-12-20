@@ -31,6 +31,7 @@ pub struct Assert {
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Release {
+    pub id: u64,
     pub tag_name: String,
     pub name: String,
     pub body: String,

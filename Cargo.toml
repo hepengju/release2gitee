@@ -11,3 +11,4 @@ env_logger = "0.11"
 reqwest = { version = "0.12", features = ["blocking", "json", "rustls-tls", "rustls-tls-native-roots", "brotli", "multipart"], default-features = false }
 anyhow = "1"
 log = "0.4.29"
+indicatif = { version = "0.17", features = ["improved_unicode"] }

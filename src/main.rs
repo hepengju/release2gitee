@@ -1,12 +1,15 @@
 use anyhow::bail;
 use clap::Parser;
 use env_logger::Env;
+use indicatif::ProgressBar;
 use log::{error, info};
 use reqwest::blocking::{Client, Response, multipart};
 use serde::{Deserialize, Serialize};
 use std::fs;
-use std::fs::write;
+use std::fs::{File, write};
+use std::io::{Read, Write};
 use std::path::Path;
+use std::time::Duration;
 
 const GITHUB_API_URL: &str = "https://api.github.com/repos";
 const GITEE_API_URL: &str = "https://gitee.com/api/v5/repos";
@@ -17,7 +20,7 @@ fn main() -> anyhow::Result<()> {
     env_logger::Builder::from_env(Env::default().default_filter_or("info")).init();
 
     let cli = &Cli::parse();
-    let client = &Client::new();
+    let client = &Client::builder().timeout(Duration::from_mins(1)).build()?;
 
     // 1.获取github的releases信息
     let github_releases = github_releases(client, cli)?;
@@ -124,6 +127,33 @@ fn gitee_release_create(client: &Client, cli: &Cli, release: &Release) -> anyhow
 
     // 下载github附件到本地
     for asset in &release.assets {
+        // 发送请求
+        let mut response = client
+            .get(asset.browser_download_url.as_str())
+            .header("User-Agent", USER_AGENT)
+            .send()?;
+
+        // 获取内容长度用于进度条
+        let total_size = response.content_length().unwrap_or(0);
+        let pb = ProgressBar::new(total_size);
+
+        // 创建文件
+        let mut file = File::create(asset.name.as_str())?;
+
+        // 下载并更新进度
+        // 分块读取、写入并更新进度
+        let mut buffer = [0u8; 8192]; // 8KB 缓冲区
+        loop {
+            let n = response.read(&mut buffer)?;
+            if n == 0 {
+                break;
+            }
+            file.write_all(&buffer[..n])?;
+            pb.inc(n as u64);
+        }
+
+        pb.finish_with_message("下载完成");
+
         let response = client
             .get(&asset.browser_download_url)
             .header("User-Agent", USER_AGENT)
@@ -132,9 +162,9 @@ fn gitee_release_create(client: &Client, cli: &Cli, release: &Release) -> anyhow
         if response.status().is_success() {
             let file_content = response.bytes()?;
             write(&asset.name, file_content)?;
-            info!("下载附件 {} 成功", &asset.name);
+            info!("下载附件成功: {}", &asset.name);
         } else {
-            error!("下载附件 {} 失败", &asset.name);
+            error!("下载附件失败: {}", &asset.name);
         }
     }
 
@@ -142,7 +172,7 @@ fn gitee_release_create(client: &Client, cli: &Cli, release: &Release) -> anyhow
     for asset in &release.assets {
         // 检查文件是否存在
         if !Path::new(&asset.name).exists() {
-            error!("本地文件 {} 不存在，跳过上传", &asset.name);
+            error!("本地文件不存在，跳过上传: {}", &asset.name);
             continue;
         }
 
@@ -163,14 +193,14 @@ fn gitee_release_create(client: &Client, cli: &Cli, release: &Release) -> anyhow
             .send()?;
 
         if upload_response.status().is_success() {
-            info!("上传附件 {} 到Gitee成功", &asset.name);
+            info!("上传附件到Gitee成功: {}", &asset.name);
 
             // 删除本地临时文件
             if let Err(e) = fs::remove_file(&asset.name) {
-                error!("删除临时文件 {} 失败: {}", &asset.name, e);
+                error!("删除临时文件失败: {}, 错误: {}", &asset.name, e);
             }
         } else {
-            error!("上传附件 {} 到Gitee失败: ", &asset.name,);
+            error!("上传附件到Gitee失败: {}", &asset.name,);
         }
     }
 

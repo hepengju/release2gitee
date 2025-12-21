@@ -22,14 +22,14 @@ pub struct Cli {
     pub lastest_release_count: u8,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 pub struct Assert {
     pub name: String,
     pub size: Option<u64>,
     pub browser_download_url: String,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct Release {
     pub id: u64,
     pub tag_name: String,

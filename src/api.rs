@@ -1,4 +1,4 @@
-use crate::model::{Cli, Release};
+use crate::model::{Assert, Cli, Release};
 use anyhow::bail;
 use indicatif::{ProgressBar, ProgressStyle};
 use log::{error, info};
@@ -14,49 +14,43 @@ const USER_AGENT: &str = "reqwest";
 
 /// 获取Github仓库Releases信息
 pub fn github_releases(client: &Client, cli: &Cli) -> anyhow::Result<Vec<Release>> {
-    let response: Response = client
-        .get(format!(
-            "{}/{}/{}/releases?per_page={}&page=1",
-            GITHUB_API_URL, cli.github_owner, cli.github_repo, cli.lastest_release_count
-        ))
-        .header("User-Agent", USER_AGENT) // Github要求必须有此请求头
-        .send()?;
-
+    let url = format!(
+        "{}/{}/{}/releases?per_page={}&page=1",
+        GITHUB_API_URL, cli.github_owner, cli.github_repo, cli.lastest_release_count
+    );
+    info!("GET: {url}");
+    // Github要求必须有User-Agent请求头
+    let response: Response = client.get(url).header("User-Agent", USER_AGENT).send()?;
     if !response.status().is_success() {
-        bail!("Github仓库releases获取失败!")
+        bail!("github releases获取失败!")
     }
-
     let result = response.text()?;
     let mut releases: Vec<Release> = serde_json::from_str(&result)?;
-    releases.reverse();
-    info!(
-        "Github仓库releases获取最近的{}个成功: {}",
-        releases.len(),
-        get_tag_names(&releases)
-    );
+    releases.reverse(); // 倒序, 这样保证同步到gitee时，先处理旧的，再处理新的
+
+    // 记录日志
+    let tag_names = get_tag_names(&releases);
+    info!("github releases最近的{}个成功: {tag_names}", releases.len());
     Ok(releases)
 }
 
 /// 获取Gitee仓库Releases信息
 pub fn gitee_releases(client: &Client, cli: &Cli) -> anyhow::Result<Vec<Release>> {
-    let response: Response = client
-        .get(format!(
-            "{}/{}/{}/releases?per_page=100&page=1", // 最近100个
-            GITEE_API_URL, cli.gitee_owner, cli.gitee_repo
-        ))
-        .send()?;
-
+    let url = format!(
+        "{}/{}/{}/releases?per_page=100&page=1", // 最近100个
+        GITEE_API_URL, cli.gitee_owner, cli.gitee_repo
+    );
+    info!("GET: {url}");
+    let response: Response = client.get(url).send()?;
     if !response.status().is_success() {
-        bail!("Gitee仓库releases信息获取失败!")
+        bail!("gitee releases信息获取失败!")
     }
-
     let result = response.text()?;
     let releases: Vec<Release> = serde_json::from_str(&result)?;
-    info!(
-        "Gitee仓库releases信息获取{}个: {}",
-        releases.len(),
-        get_tag_names(&releases)
-    );
+
+    // 记录日志
+    let tag_names = get_tag_names(&releases);
+    info!("gitee releases获取{}个: {}", releases.len(), tag_names);
     Ok(releases)
 }
 
@@ -76,41 +70,113 @@ pub fn sync_gitee_release(
     release: &Release,
     er: Option<&Release>,
 ) -> anyhow::Result<()> {
-    // 如果gitee的release不存在则创建
-    let gitee_release = if er.is_none() {
-        &gitee_release_create(client, cli, &release)?
-    } else {
-        er.unwrap()
-    };
+    // 如果gitee的release不存在则创建, 存在且内容不一致则更新, 否则无需处理
+    let gitee_release = &gitee_release_create_or_update(client, cli, release, er)?;
+
+    // 如果gitee的release 和 github的release的附件完全一致，则无需处理
+    let diff_asserts = &release_asserts_diff(release, gitee_release);
+    if diff_asserts.is_empty() {
+        info!("gitee release与github release附件相同: {}!", &release.tag_name);
+        return Ok(());
+    }
 
     // 下载github附件到本地
-    download_release_asserts(client, cli, release, gitee_release)?;
+    download_release_asserts(client, cli, release, diff_asserts)?;
 
     // 上传附件到gitee
-    upload_release_asserts(client, cli, release, gitee_release)?;
+    upload_release_asserts(client, cli, release, gitee_release, diff_asserts)?;
     Ok(())
 }
 
-/// gitee创建Release
-fn gitee_release_create(client: &Client, cli: &Cli, release: &Release) -> anyhow::Result<Release> {
+fn gitee_release_create_or_update(
+    client: &Client,
+    cli: &Cli,
+    release: &Release,
+    er: Option<& Release>,
+) -> anyhow::Result<Release> {
+    if er.is_none() {
+        Ok(gitee_release_create(client, cli, &release)?)
+    } else {
+        let er = er.unwrap();
+        if release.name != er.name
+            || release.body != er.body
+            || release.prerelease != er.prerelease
+            || release.target_commitish != er.target_commitish
+        {
+            let new_er = Release {
+                id: er.id,
+                tag_name: er.tag_name.clone(),
+                assets: er.assets.clone(),
+
+                name: release.name.clone(),
+                body: release.body.clone(),
+                prerelease: release.prerelease.clone(),
+                target_commitish: release.target_commitish.clone(),
+            };
+            gitee_release_update(client, cli, &new_er)?;
+            Ok(new_er)
+        } else {
+            info!("gitee release与github release信息相同: {}!", &release.tag_name);
+            Ok(er.clone())
+        }
+    }
+}
+
+fn gitee_release_update(client: &Client, cli: &Cli, er: &Release) -> anyhow::Result<()> {
+    let url = format!(
+        "{}/{}/{}/releases/{}",
+        GITEE_API_URL, cli.gitee_owner, cli.gitee_repo, er.id
+    );
+    info!("POST: {url}");
     let response: Response = client
-        .post(format!(
-            "{}/{}/{}/releases",
-            GITEE_API_URL, cli.gitee_owner, cli.gitee_repo
-        ))
+        .patch(url)
+        .header("Authorization", format!("token {}", cli.gitee_token))
+        .header("Content-Type", "application/json")
+        .json(er)
+        .send()?;
+
+    if !response.status().is_success() {
+        bail!("gitee release更新失败: {}!", &er.tag_name)
+    }
+
+    let result = response.text()?;
+    let release: Release = serde_json::from_str(&result)?;
+    info!("gitee release更新成功: {}!", &release.tag_name);
+    Ok(())
+}
+
+fn gitee_release_create(client: &Client, cli: &Cli, release: &Release) -> anyhow::Result<Release> {
+    let url = format!(
+        "{}/{}/{}/releases",
+        GITEE_API_URL, cli.gitee_owner, cli.gitee_repo
+    );
+    info!("POST: {url}");
+    let response: Response = client
+        .post(url)
         .header("Authorization", format!("token {}", cli.gitee_token))
         .header("Content-Type", "application/json")
         .json(release)
         .send()?;
 
     if !response.status().is_success() {
-        bail!("Gitee仓库Release创建失败: {}!", &release.tag_name)
+        bail!("gitee release创建失败: {}!", &release.tag_name)
     }
 
     let result = response.text()?;
     let release: Release = serde_json::from_str(&result)?;
-    info!("Gitee仓库Release创建成功: {}!", &release.tag_name);
+    info!("gitee release创建成功: {}!", &release.tag_name);
     Ok(release)
+}
+
+/// 寻找附件差异: Github附件有，但Gitee没有的
+fn release_asserts_diff(release: &Release, gitee_release: &Release) -> Vec<Assert> {
+    let mut diff_assets = Vec::new();
+    for asset in &release.assets {
+        if !gitee_release.assets.iter().any(|gitee_asset| gitee_asset.name == asset.name) {
+            diff_assets.push(asset.clone());
+        }
+    }
+    diff_assets
 }
 
 /// 下载附件
@@ -118,19 +184,14 @@ fn download_release_asserts(
     client: &Client,
     cli: &Cli,
     release: &Release,
-    gitee_release: &Release,
+    diff_asserts: &Vec<Assert>,
 ) -> anyhow::Result<()> {
     info!("创建目录: {}", &release.tag_name);
     if !Path::new(&release.tag_name).exists() {
         fs::create_dir(&release.tag_name)?;
     }
 
-    for asset in &release.assets {
-        if let Some(_) = gitee_release.assets.iter().find(|a| a.name == asset.name) {
-            info!("Gitee附件文件已存在，忽略下载: {}", &asset.name);
-            continue;
-        }
-
+    for asset in diff_asserts {
         // 先判断文件是否存在，存在且大小一致则忽略下载
         let file_path = format!("{}/{}", &release.tag_name, &asset.name);
         if Path::new(&file_path).exists() {
@@ -206,15 +267,10 @@ fn upload_release_asserts(
     cli: &Cli,
     release: &Release,
     gitee_release: &Release,
+    diff_asserts: &Vec<Assert>,
 ) -> anyhow::Result<()> {
-    for asset in &release.assets {
+    for asset in diff_asserts {
         let file_path = &format!("{}/{}", &release.tag_name, &asset.name);
-
-        // 如果文件已存在则跳过上传
-        if let Some(_) = gitee_release.assets.iter().find(|a| a.name == asset.name) {
-            info!("Gitee附件文件已存在，忽略上传: {}", &asset.name);
-            continue;
-        }
 
         // 检查文件是否存在
         if !Path::new(file_path).exists() {
@@ -238,9 +294,9 @@ fn upload_release_asserts(
             .send()?;
 
         if upload_response.status().is_success() {
-            info!("上传附件到Gitee成功: {}", &asset.name);
+            info!("上传附件到gitee成功: {}", &asset.name);
         } else {
-            error!("上传附件到Gitee失败: {}", &asset.name);
+            error!("上传附件到gitee失败: {}", &asset.name);
         }
     }
     Ok(())

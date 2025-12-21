@@ -30,7 +30,7 @@ Options:
   -h, --help                           Print help
 
 # 执行同步（网络问题可能出错，可重试执行，会复用已下载的文件及对比release分支的内容和附件列表）
-./release2gitee
+$ ./release2gitee
 ```
 
 # 背景
@@ -41,7 +41,7 @@ Options:
 - [Gitee-Sync-Tool](https://github.com/XingHeYuZhuan/Gitee-Sync-Tool/blob/main/.github/workflows/gitee-batch-sync.yml)
 > 纯Shell脚本实现，有些特殊场景的处理，维护起来比较麻烦
 - [sync-action](https://github.com/H-TWINKLE/sync-action)
-> 基于Python脚本实现，比较简单，但需要安装Python环境。实测也遇到一些问题没有完成同步
+> 基于Python脚本实现，比较简单，但需要安装Python环境。而且github的打包机器上传gitee附件特别慢
 - [sync-release-gitee](https://github.com/trustedinster/sync-release-gitee/tree/v1.1)
 > 同上，基本一致
 
@@ -52,6 +52,3 @@ Options:
 # 方案: 采用Rust实现编写cli可执行文件
 - 体积非常小: 在Github的action中, 直接选择 ubuntu-latest, 运行时间非常短
 - 跨平台支持: Windows、MacOS、Linux 等都可以方便的测试验证
-
-# 参考
-- [fnm](https://github.com/Schniz/fnm)

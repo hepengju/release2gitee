@@ -76,7 +76,10 @@ pub fn sync_gitee_release(
     // 如果gitee的release 和 github的release的附件完全一致，则无需处理
     let diff_asserts = &release_asserts_diff(release, gitee_release);
     if diff_asserts.is_empty() {
-        info!("gitee release与github release附件相同: {}!", &release.tag_name);
+        info!(
+            "gitee release与github release附件相同: {}!",
+            &release.tag_name
+        );
         return Ok(());
     }
 
@@ -92,7 +95,7 @@ fn gitee_release_create_or_update(
     client: &Client,
     cli: &Cli,
     release: &Release,
-    er: Option<& Release>,
+    er: Option<&Release>,
 ) -> anyhow::Result<Release> {
     if er.is_none() {
         Ok(gitee_release_create(client, cli, &release)?)
@@ -116,7 +119,10 @@ fn gitee_release_create_or_update(
             gitee_release_update(client, cli, &new_er)?;
             Ok(new_er)
         } else {
-            info!("gitee release与github release信息相同: {}!", &release.tag_name);
+            info!(
+                "gitee release与github release信息相同: {}!",
+                &release.tag_name
+            );
             Ok(er.clone())
         }
     }
@@ -172,7 +178,11 @@ fn gitee_release_create(client: &Client, cli: &Cli, release: &Release) -> anyhow
 fn release_asserts_diff(release: &Release, gitee_release: &Release) -> Vec<Assert> {
     let mut diff_assets = Vec::new();
     for asset in &release.assets {
-        if !gitee_release.assets.iter().any(|gitee_asset| gitee_asset.name == asset.name) {
+        if !gitee_release
+            .assets
+            .iter()
+            .any(|gitee_asset| gitee_asset.name == asset.name)
+        {
             diff_assets.push(asset.clone());
         }
     }

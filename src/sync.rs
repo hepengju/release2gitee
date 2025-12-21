@@ -76,10 +76,8 @@ pub fn sync_gitee_release(
     // 如果gitee的release 和 github的release的附件完全一致，则无需处理
     let diff_asserts = &release_asserts_diff(release, gitee_release);
     if diff_asserts.is_empty() {
-        info!(
-            "gitee release与github release附件相同: {}!",
-            &release.tag_name
-        );
+        let tag_name = &release.tag_name;
+        info!("gitee release与github release附件相同: {tag_name}!",);
         return Ok(());
     }
 
@@ -101,8 +99,11 @@ fn gitee_release_create_or_update(
         Ok(gitee_release_create(client, cli, &release)?)
     } else {
         let er = er.unwrap();
+
+        let new_body = replace_release_body_url(cli, release.body.clone());
+
         if release.name != er.name
-            || release.body != er.body
+            || new_body != er.body
             || release.prerelease != er.prerelease
             || release.target_commitish != er.target_commitish
         {
@@ -110,9 +111,8 @@ fn gitee_release_create_or_update(
                 id: er.id,
                 tag_name: er.tag_name.clone(),
                 assets: er.assets.clone(),
-
                 name: release.name.clone(),
-                body: release.body.clone(),
+                body: new_body,
                 prerelease: release.prerelease.clone(),
                 target_commitish: release.target_commitish.clone(),
             };
@@ -251,17 +251,10 @@ fn download_release_asserts(
             info!("下载附件成功: {}", &asset.name);
 
             // 如果是latest.json, 则替换其中的下载地址
-            if asset.name == "latest.json" {
+            if cli.lastest_json_url_replace && asset.name == "latest.json" {
                 info!("latest.json文件替换里面的下载地址");
                 let content = fs::read_to_string(&file_path)?;
-                // https://github.com/hepengju/redis-me
-                // https://gitee.com/hepengju/redis-me
-                let src = format!(
-                    "https://github.com/{}/{}",
-                    cli.github_owner, cli.github_repo
-                );
-                let tar = format!("https://gitee.com/{}/{}", cli.gitee_owner, cli.gitee_repo);
-                let content = content.replace(&src, &tar);
+                let content = replace_download_url(cli, content);
                 fs::write(&file_path, content)?;
             }
         } else {
@@ -269,6 +262,27 @@ fn download_release_asserts(
         }
     }
     Ok(())
+}
+
+// 替换下载地址
+fn replace_download_url(cli: &Cli, content: String) -> String {
+    // https://github.com/hepengju/redis-me
+    // https://gitee.com/hepengju/redis-me
+    let src = format!(
+        "https://github.com/{}/{}",
+        cli.github_owner, cli.github_repo
+    );
+    let tar = format!("https://gitee.com/{}/{}", cli.gitee_owner, cli.gitee_repo);
+    let content = content.replace(&src, &tar);
+    content
+}
+
+fn replace_release_body_url(cli: &Cli, content: String) -> String {
+    if cli.release_body_url_replace {
+        replace_download_url(cli, content)
+    } else {
+        content
+    }
 }
 
 /// 上传附件

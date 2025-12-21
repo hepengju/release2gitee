@@ -20,6 +20,12 @@ pub struct Cli {
 
     #[clap(default_value_t = 10)]
     pub lastest_release_count: u8,
+
+    #[clap(long, default_value_t = true)]
+    pub release_body_url_replace: bool,
+
+    #[clap(long, default_value_t = true)]
+    pub lastest_json_url_replace: bool,
 }
 
 #[derive(Debug, Deserialize, Clone)]

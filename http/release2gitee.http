@@ -37,10 +37,27 @@ Content-Type: application/json
   "target_commitish": "b3d69331565727988cb0962d4aa5d08d5517c2c9"
 }
 
+### 更新Gitee仓库Release
+< {%
+  request.variables.set("release_id", "560038")
+%}
+PATCH {{gitee_api}}/{{gitee_owner}}/{{gitee_repo}}/releases/{{release_id}}
+Content-Type: application/json
+
+{
+  "access_token": "{{gitee_token}}",
+  "tag_name": "v0.0.0",
+  "name": "release",
+  "body": "测试创建Release 0.0.0 更新",
+  "prerelease": "false",
+  "target_commitish": "b3d69331565727988cb0962d4aa5d08d5517c2c9"
+}
+
+
 ### 删除Gitee仓库Release
 #https://gitee.com/api/v5/swagger#/deleteV5ReposOwnerRepoReleasesId
 < {%
-  request.variables.set("release_id", "559847")
+  request.variables.set("release_id", "560038")
 %}
 DELETE {{gitee_api}}/{{gitee_owner}}/{{gitee_repo}}/releases/{{release_id}}
 Content-Type: application/json

@@ -19,7 +19,7 @@ pub struct Cli {
     #[clap(env = "gitee_token")]
     pub gitee_token: String,
 
-    #[clap(default_value_t = 10)]
+    #[clap(default_value_t = 5)]
     pub lastest_release_count: u8,
 
     #[clap(long)]

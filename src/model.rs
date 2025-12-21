@@ -1,4 +1,3 @@
-use clap::ArgAction;
 use clap::Parser;
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
@@ -33,9 +32,11 @@ pub struct Cli {
 impl Display for Cli {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let masked_token = if self.gitee_token.len() > 8 {
-            format!("{}******", &self.gitee_token[..8])
+            let prefix = &self.gitee_token[..8];
+            let asterisks = "*".repeat(self.gitee_token.len() - 8);
+            format!("{}{}", prefix, asterisks)
         } else {
-            "******".to_string()
+            "*".repeat(self.gitee_token.len())
         };
 
         write!(

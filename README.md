@@ -1,5 +1,38 @@
 ## Github的Release同步到Gitee
 
+```shell
+# 推荐参数配置到环境变量中
+vim ~/.bashrc
+
+export gitee_owner=hepengju
+export gitee_repo=redis-me
+export github_owner=hepengju
+export github_repo=redis-me
+export gitee_token=449cb0c5************************
+
+source ~/.bashrc
+
+# 查看帮助
+$ ./release2gitee --help
+Usage: release2gitee.exe [OPTIONS] <GITHUB_OWNER> <GITHUB_REPO> <GITEE_OWNER> <GITEE_REPO> <GITEE_TOKEN> [LASTEST_RELEASE_COUNT]
+
+Arguments:
+  <GITHUB_OWNER>           [env: github_owner=hepengju]
+  <GITHUB_REPO>            [env: github_repo=redis-me]
+  <GITEE_OWNER>            [env: gitee_owner=hepengju]
+  <GITEE_REPO>             [env: gitee_repo=redis-me]
+  <GITEE_TOKEN>            [env: gitee_token=449cb0c5************************]
+  [LASTEST_RELEASE_COUNT]  [default: 10]
+
+Options:
+      --skip-release-body-url-replace  
+      --skip-lastest-json-url-replace  
+  -h, --help                           Print help
+
+# 执行同步（网络问题可能出错，可重试执行，会复用已下载的文件及对比release分支的内容和附件列表）
+./release2gitee
+```
+
 # 背景
 > 基于Tauri编写的桌面应用: [RedisME](https://github.com/hepengju/redis-me) 在Github打包发布，
 国内网络环境导致应用自动升级比较困难，故想将Github的Release同步到Gitee，方便用户下载与软件的自动升级。

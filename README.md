@@ -31,24 +31,18 @@ Options:
 
 # 执行同步（网络问题可能出错，可重试执行，会复用已下载的文件及对比release分支的内容和附件列表）
 $ ./release2gitee
-[2025-12-21T06:14:16Z INFO  release2gitee] 命令行解析完成: github_owner: hepengju, github_repo: redis-me, gitee_owner: hepengju, gitee_repo: hepengju, gitee_token: 449cb0c5************************, lastest_release_count: 10, skip_release_body_url_replace: false, skip_lastest_json_url_replace: false
-[2025-12-21T06:14:16Z INFO  release2gitee::sync] GET: https://api.github.com/repos/hepengju/redis-me/releases?per_page=10&page=1
-[2025-12-21T06:14:18Z INFO  release2gitee::sync] github releases最近的6个成功: v0.1.2, v0.1.3, v0.1.4, v0.1.5, v0.1.6, v0.1.7
-[2025-12-21T06:14:18Z INFO  release2gitee::sync] GET: https://gitee.com/api/v5/repos/hepengju/redis-me/releases?per_page=100&page=1
-[2025-12-21T06:14:19Z INFO  release2gitee::sync] gitee releases获取6个: v0.1.2, v0.1.3, v0.1.4, v0.1.5, v0.1.6, v0.1.7
-[2025-12-21T06:14:19Z INFO  release2gitee::sync] gitee release与github release信息相同: v0.1.2!
-[2025-12-21T06:14:19Z INFO  release2gitee::sync] gitee release与github release附件相同: v0.1.2!
-[2025-12-21T06:14:19Z INFO  release2gitee::sync] gitee release与github release信息相同: v0.1.3!
-[2025-12-21T06:14:19Z INFO  release2gitee::sync] gitee release与github release附件相同: v0.1.3!
-[2025-12-21T06:14:19Z INFO  release2gitee::sync] gitee release与github release信息相同: v0.1.4!
-[2025-12-21T06:14:19Z INFO  release2gitee::sync] gitee release与github release附件相同: v0.1.4!
-[2025-12-21T06:14:19Z INFO  release2gitee::sync] gitee release与github release信息相同: v0.1.5!
-[2025-12-21T06:14:19Z INFO  release2gitee::sync] gitee release与github release附件相同: v0.1.5!
-[2025-12-21T06:14:19Z INFO  release2gitee::sync] gitee release与github release信息相同: v0.1.6!
-[2025-12-21T06:14:19Z INFO  release2gitee::sync] gitee release与github release附件相同: v0.1.6!
-[2025-12-21T06:14:19Z INFO  release2gitee::sync] gitee release与github release信息相同: v0.1.7!
-[2025-12-21T06:14:19Z INFO  release2gitee::sync] gitee release与github release附件相同: v0.1.7!
-[2025-12-21T06:14:19Z INFO  release2gitee] 同步程序执行完毕
+[2025-12-21T06:23:25Z INFO  release2gitee] 命令行解析完成: github_owner: hepengju, github_repo: release2gitee, gitee_owner: hepengju, gitee_repo: hepengju, gitee_token: 449cb0c5************************, lastest_release_count: 10, skip_release_body_url_replace: false, skip_lastest_json_url_replace: false
+[2025-12-21T06:23:25Z INFO  release2gitee::sync] GET: https://api.github.com/repos/hepengju/release2gitee/releases?per_page=10&page=1
+[2025-12-21T06:23:26Z INFO  release2gitee::sync] github releases最近的1个成功: v0.1.0
+[2025-12-21T06:23:26Z INFO  release2gitee::sync] GET: https://gitee.com/api/v5/repos/hepengju/release2gitee/releases?per_page=100&page=1
+[2025-12-21T06:23:26Z INFO  release2gitee::sync] gitee releases获取0个:
+[2025-12-21T06:23:26Z INFO  release2gitee::sync] POST: https://gitee.com/api/v5/repos/hepengju/release2gitee/releases
+[2025-12-21T06:23:27Z INFO  release2gitee::sync] gitee release创建成功: v0.1.0!
+[2025-12-21T06:23:27Z INFO  release2gitee::sync] 创建目录: v0.1.0
+[2025-12-21T06:23:27Z INFO  release2gitee::sync] 开始下载附件: release2gitee.exe
+00:00:08 █████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████ 6.73 MiB/6.73 MiB (818.05 KiB/s, 0s)[2025-12-21T06:23:37Z INFO  release2gitee::sync] 下载附件成功: release2gitee.exe
+[2025-12-21T06:23:39Z INFO  release2gitee::sync] 上传附件到gitee成功: release2gitee.exe
+[2025-12-21T06:23:39Z INFO  release2gitee] 同步程序执行完毕
 ```
 
 # 背景

@@ -1,3 +1,4 @@
+use clap::ArgAction;
 use clap::Parser;
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
@@ -22,11 +23,11 @@ pub struct Cli {
     #[clap(default_value_t = 10)]
     pub lastest_release_count: u8,
 
-    #[clap(long, default_value_t = true)]
-    pub release_body_url_replace: bool,
+    #[clap(long)]
+    pub skip_release_body_url_replace: bool,
 
-    #[clap(long, default_value_t = true)]
-    pub lastest_json_url_replace: bool,
+    #[clap(long)]
+    pub skip_lastest_json_url_replace: bool,
 }
 
 impl Display for Cli {
@@ -39,15 +40,15 @@ impl Display for Cli {
 
         write!(
             f,
-            "github_owner: {}, github_repo: {}, gitee_owner: {}, gitee_repo: {}, gitee_token: {}, lastest_release_count: {}, release_body_url_replace: {}, lastest_json_url_replace: {}",
+            "github_owner: {}, github_repo: {}, gitee_owner: {}, gitee_repo: {}, gitee_token: {}, lastest_release_count: {}, skip_release_body_url_replace: {}, skip_lastest_json_url_replace: {}",
             self.github_owner,
             self.github_repo,
             self.gitee_owner,
             self.gitee_owner,
             masked_token,
             self.lastest_release_count,
-            self.release_body_url_replace,
-            self.lastest_json_url_replace
+            self.skip_release_body_url_replace,
+            self.skip_lastest_json_url_replace
         )
     }
 }

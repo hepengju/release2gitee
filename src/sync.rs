@@ -251,7 +251,7 @@ fn download_release_asserts(
             info!("下载附件成功: {}", &asset.name);
 
             // 如果是latest.json, 则替换其中的下载地址
-            if cli.lastest_json_url_replace && asset.name == "latest.json" {
+            if !cli.skip_lastest_json_url_replace && asset.name == "latest.json" {
                 info!("latest.json文件替换里面的下载地址");
                 let content = fs::read_to_string(&file_path)?;
                 let content = replace_download_url(cli, content);
@@ -278,10 +278,10 @@ fn replace_download_url(cli: &Cli, content: String) -> String {
 }
 
 fn replace_release_body_url(cli: &Cli, content: String) -> String {
-    if cli.release_body_url_replace {
-        replace_download_url(cli, content)
-    } else {
+    if cli.skip_release_body_url_replace {
         content
+    } else {
+        replace_download_url(cli, content)
     }
 }
 

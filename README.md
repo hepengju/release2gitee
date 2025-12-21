@@ -31,6 +31,24 @@ Options:
 
 # 执行同步（网络问题可能出错，可重试执行，会复用已下载的文件及对比release分支的内容和附件列表）
 $ ./release2gitee
+[2025-12-21T06:14:16Z INFO  release2gitee] 命令行解析完成: github_owner: hepengju, github_repo: redis-me, gitee_owner: hepengju, gitee_repo: hepengju, gitee_token: 449cb0c5************************, lastest_release_count: 10, skip_release_body_url_replace: false, skip_lastest_json_url_replace: false
+[2025-12-21T06:14:16Z INFO  release2gitee::sync] GET: https://api.github.com/repos/hepengju/redis-me/releases?per_page=10&page=1
+[2025-12-21T06:14:18Z INFO  release2gitee::sync] github releases最近的6个成功: v0.1.2, v0.1.3, v0.1.4, v0.1.5, v0.1.6, v0.1.7
+[2025-12-21T06:14:18Z INFO  release2gitee::sync] GET: https://gitee.com/api/v5/repos/hepengju/redis-me/releases?per_page=100&page=1
+[2025-12-21T06:14:19Z INFO  release2gitee::sync] gitee releases获取6个: v0.1.2, v0.1.3, v0.1.4, v0.1.5, v0.1.6, v0.1.7
+[2025-12-21T06:14:19Z INFO  release2gitee::sync] gitee release与github release信息相同: v0.1.2!
+[2025-12-21T06:14:19Z INFO  release2gitee::sync] gitee release与github release附件相同: v0.1.2!
+[2025-12-21T06:14:19Z INFO  release2gitee::sync] gitee release与github release信息相同: v0.1.3!
+[2025-12-21T06:14:19Z INFO  release2gitee::sync] gitee release与github release附件相同: v0.1.3!
+[2025-12-21T06:14:19Z INFO  release2gitee::sync] gitee release与github release信息相同: v0.1.4!
+[2025-12-21T06:14:19Z INFO  release2gitee::sync] gitee release与github release附件相同: v0.1.4!
+[2025-12-21T06:14:19Z INFO  release2gitee::sync] gitee release与github release信息相同: v0.1.5!
+[2025-12-21T06:14:19Z INFO  release2gitee::sync] gitee release与github release附件相同: v0.1.5!
+[2025-12-21T06:14:19Z INFO  release2gitee::sync] gitee release与github release信息相同: v0.1.6!
+[2025-12-21T06:14:19Z INFO  release2gitee::sync] gitee release与github release附件相同: v0.1.6!
+[2025-12-21T06:14:19Z INFO  release2gitee::sync] gitee release与github release信息相同: v0.1.7!
+[2025-12-21T06:14:19Z INFO  release2gitee::sync] gitee release与github release附件相同: v0.1.7!
+[2025-12-21T06:14:19Z INFO  release2gitee] 同步程序执行完毕
 ```
 
 # 背景

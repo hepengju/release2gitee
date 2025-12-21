@@ -1,5 +1,6 @@
 use clap::Parser;
 use serde::{Deserialize, Serialize};
+use std::fmt::Display;
 
 #[derive(Parser, Debug)]
 pub struct Cli {
@@ -26,6 +27,29 @@ pub struct Cli {
 
     #[clap(long, default_value_t = true)]
     pub lastest_json_url_replace: bool,
+}
+
+impl Display for Cli {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let masked_token = if self.gitee_token.len() > 8 {
+            format!("{}******", &self.gitee_token[..8])
+        } else {
+            "******".to_string()
+        };
+
+        write!(
+            f,
+            "github_owner: {}, github_repo: {}, gitee_owner: {}, gitee_repo: {}, gitee_token: {}, lastest_release_count: {}, release_body_url_replace: {}, lastest_json_url_replace: {}",
+            self.github_owner,
+            self.github_repo,
+            self.gitee_owner,
+            self.gitee_owner,
+            masked_token,
+            self.lastest_release_count,
+            self.release_body_url_replace,
+            self.lastest_json_url_replace
+        )
+    }
 }
 
 #[derive(Debug, Deserialize, Clone)]

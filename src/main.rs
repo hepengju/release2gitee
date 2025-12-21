@@ -15,7 +15,7 @@ fn main() -> anyhow::Result<()> {
 
     let cli = &Cli::parse();
     let client = &Client::builder().timeout(Duration::from_mins(1)).build()?;
-    info!("命令行解析完成: {cli:?}");
+    info!("命令行解析完成: {cli}");
 
     // 1. 获取github的releases信息
     let github_releases = github_releases(client, cli)?;

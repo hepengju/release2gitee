@@ -1,11 +1,10 @@
-pub mod model;
 mod http;
+pub mod model;
 
 use crate::model::{Assert, Cli, Release};
-use anyhow::bail;
 use indicatif::{ProgressBar, ProgressStyle};
 use log::{error, info};
-use reqwest::blocking::{multipart, Client, Response};
+use reqwest::blocking::{Client, Response, multipart};
 use reqwest::header::USER_AGENT;
 use std::fs;
 use std::fs::File;
@@ -14,8 +13,9 @@ use std::path::Path;
 
 const GITHUB_API_URL: &str = "https://api.github.com/repos";
 const GITEE_API_URL: &str = "https://gitee.com/api/v5/repos";
+pub type AnyResult<T> = anyhow::Result<T>;
 
-pub fn sync_github_releases_to_gitee(cli: &Cli) -> anyhow::Result<()> {
+pub fn sync_github_releases_to_gitee(cli: &Cli) -> AnyResult<()> {
     // http请求较多，复用client
     let client = &http::init_client()?;
 
@@ -29,14 +29,16 @@ pub fn sync_github_releases_to_gitee(cli: &Cli) -> anyhow::Result<()> {
 
     // 4. 循环release进行对比并同步
     for github_release in &github_releases {
-        let gitee_release = gitee_releases.iter().find(|gr| gr.tag_name == github_release.tag_name);
+        let gitee_release = gitee_releases
+            .iter()
+            .find(|gr| gr.tag_name == github_release.tag_name);
         sync_release(client, cli, github_release, gitee_release)?;
     }
     Ok(())
 }
 
 /// 获取Github仓库Releases信息
-pub fn github_releases(client: &Client, cli: &Cli) -> anyhow::Result<Vec<Release>> {
+pub fn github_releases(client: &Client, cli: &Cli) -> AnyResult<Vec<Release>> {
     let url = format!(
         "{}/{}/{}/releases?per_page={}&page=1",
         GITHUB_API_URL, cli.github_owner, cli.github_repo, cli.github_latest_release_count
@@ -52,7 +54,7 @@ pub fn github_releases(client: &Client, cli: &Cli) -> anyhow::Result<Vec<Release
 }
 
 /// 获取Gitee仓库Releases信息
-pub fn gitee_releases(client: &Client, cli: &Cli) -> anyhow::Result<Vec<Release>> {
+pub fn gitee_releases(client: &Client, cli: &Cli) -> AnyResult<Vec<Release>> {
     let url = format!(
         "{}/{}/{}/releases?per_page=100&page=1", // 最近100个
         GITEE_API_URL, cli.gitee_owner, cli.gitee_repo
@@ -81,7 +83,7 @@ pub fn sync_release(
     cli: &Cli,
     release: &Release,
     er: Option<&Release>,
-) -> anyhow::Result<()> {
+) -> AnyResult<()> {
     // 如果gitee的release不存在则创建, 存在且内容不一致则更新, 否则无需处理
     let gitee_release = &gitee_release_create_or_update(client, cli, release, er)?;
 
@@ -101,8 +103,12 @@ pub fn sync_release(
     Ok(())
 }
 
-fn gitee_release_delete(client: &Client, cli: &Cli, id: u64) {
-
+fn gitee_release_delete(client: &Client, cli: &Cli, id: u64) -> AnyResult<()> {
+    let url = format!(
+        "{}/{}/{}/releases/{}",
+        GITEE_API_URL, cli.gitee_owner, cli.gitee_repo, id
+    );
+    http::delete(client, &url, &cli.gitee_token)
 }
 
 fn gitee_release_create_or_update(
@@ -110,7 +116,7 @@ fn gitee_release_create_or_update(
     cli: &Cli,
     release: &Release,
     er: Option<&Release>,
-) -> anyhow::Result<Release> {
+) -> AnyResult<Release> {
     if er.is_none() {
         Ok(gitee_release_create(client, cli, &release)?)
     } else {
@@ -144,47 +150,23 @@ fn gitee_release_create_or_update(
     }
 }
 
-fn gitee_release_update(client: &Client, cli: &Cli, er: &Release) -> anyhow::Result<()> {
+fn gitee_release_update(client: &Client, cli: &Cli, er: &Release) -> AnyResult<()> {
     let url = format!(
         "{}/{}/{}/releases/{}",
         GITEE_API_URL, cli.gitee_owner, cli.gitee_repo, er.id
     );
-    info!("POST: {url}");
-    let response: Response = client
-        .patch(url)
-        .header("Authorization", format!("token {}", cli.gitee_token))
-        .header("Content-Type", "application/json")
-        .json(er)
-        .send()?;
-
-    if !response.status().is_success() {
-        bail!("gitee release更新失败: {}!", &er.tag_name)
-    }
-
-    let result = response.text()?;
+    let result = http::patch(client, &url, &cli.gitee_token, er)?;
     let release: Release = serde_json::from_str(&result)?;
     info!("gitee release更新成功: {}!", &release.tag_name);
     Ok(())
 }
 
-fn gitee_release_create(client: &Client, cli: &Cli, release: &Release) -> anyhow::Result<Release> {
+fn gitee_release_create(client: &Client, cli: &Cli, release: &Release) -> AnyResult<Release> {
     let url = format!(
         "{}/{}/{}/releases",
         GITEE_API_URL, cli.gitee_owner, cli.gitee_repo
     );
-    info!("POST: {url}");
-    let response: Response = client
-        .post(url)
-        .header("Authorization", format!("token {}", cli.gitee_token))
-        .header("Content-Type", "application/json")
-        .json(release)
-        .send()?;
-
-    if !response.status().is_success() {
-        bail!("gitee release创建失败: {}!", &release.tag_name)
-    }
-
-    let result = response.text()?;
+    let result = http::post(client, &url, &cli.gitee_token, release)?;
     let release: Release = serde_json::from_str(&result)?;
     info!("gitee release创建成功: {}!", &release.tag_name);
     Ok(release)
@@ -211,7 +193,7 @@ fn download_release_asserts(
     cli: &Cli,
     release: &Release,
     diff_asserts: &Vec<Assert>,
-) -> anyhow::Result<()> {
+) -> AnyResult<()> {
     info!("创建目录: {}", &release.tag_name);
     if !Path::new(&release.tag_name).exists() {
         fs::create_dir(&release.tag_name)?;
@@ -308,7 +290,7 @@ fn upload_release_asserts(
     release: &Release,
     gitee_release: &Release,
     diff_asserts: &Vec<Assert>,
-) -> anyhow::Result<()> {
+) -> AnyResult<()> {
     for asset in diff_asserts {
         let file_path = &format!("{}/{}", &release.tag_name, &asset.name);
 

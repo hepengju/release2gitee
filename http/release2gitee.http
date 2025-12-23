@@ -38,6 +38,7 @@ Content-Type: application/json
 }
 
 ### 更新Gitee仓库Release
+#https://gitee.com/api/v5/swagger#/patchV5ReposOwnerRepoReleasesId
 < {%
   request.variables.set("release_id", "560038")
 %}

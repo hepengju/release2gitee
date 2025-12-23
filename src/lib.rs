@@ -2,9 +2,10 @@ mod http;
 pub mod model;
 
 use crate::model::{Assert, Cli, Release};
+use anyhow::bail;
 use indicatif::{ProgressBar, ProgressStyle};
 use log::{error, info};
-use reqwest::blocking::{Client, Response, multipart};
+use reqwest::blocking::{Client, multipart};
 use reqwest::header::USER_AGENT;
 use std::fs;
 use std::fs::File;
@@ -14,6 +15,17 @@ use std::path::Path;
 const GITHUB_API_URL: &str = "https://api.github.com/repos";
 const GITEE_API_URL: &str = "https://gitee.com/api/v5/repos";
 pub type AnyResult<T> = anyhow::Result<T>;
+
+pub fn check_cli(cli: &Cli) -> AnyResult<()> {
+    if cli.gitee_retain_release_count < cli.github_latest_release_count {
+        bail!(
+            "gitee_retain_release_count ({}) must be greater than or equal to github_latest_release_count ({}).",
+            cli.gitee_retain_release_count,
+            cli.github_latest_release_count
+        )
+    }
+    Ok(())
+}
 
 pub fn sync_github_releases_to_gitee(cli: &Cli) -> AnyResult<()> {
     // http请求较多，复用client
@@ -25,7 +37,8 @@ pub fn sync_github_releases_to_gitee(cli: &Cli) -> AnyResult<()> {
     // 2. 获取gitee的releases信息
     let gitee_releases = gitee_releases(client, cli)?;
 
-    // 3. 删除gitee中旧的release(免费的容量空间有限)
+    // 3. 清理gitee中旧的release(免费的容量空间有限)
+    clean_gitee_releases(client, cli)?;
 
     // 4. 循环release进行对比并同步
     for github_release in &github_releases {
@@ -75,6 +88,10 @@ fn get_tag_names(releases: &Vec<Release>) -> String {
         .map(|release| release.tag_name.as_str())
         .collect::<Vec<_>>()
         .join(", ")
+}
+
+fn clean_gitee_releases(client: &Client, cli: &Cli) -> AnyResult<()> {
+    Ok(())
 }
 
 /// 同步Gitee仓库Release

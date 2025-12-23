@@ -24,10 +24,10 @@ pub struct Cli {
 
     /// {github_api}/repos/{owner}/{repo}/releases?per_page={}&page=1
     #[clap(long, env = "release2gitee__release_body_url_replace", default_value_t = 5)]
-    pub github_latest_release_count: u8,
+    pub github_latest_release_count: u32,
 
-    #[clap(long, env = "release2gitee__release_body_url_replace", default_value_t = 100)]
-    pub gitee_delete_release_if_count_gt: u32,
+    #[clap(long, env = "release2gitee__gitee_retain_release_count", default_value_t = 999)]
+    pub gitee_retain_release_count: u32,
 
     #[clap(long, env = "release2gitee__release_body_url_replace", default_value_t = true)]
     pub release_body_url_replace: bool,

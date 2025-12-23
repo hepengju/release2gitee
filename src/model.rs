@@ -3,31 +3,37 @@ use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 use clap_verbosity_flag::{InfoLevel, Verbosity};
 
+/// sync github releases to gitee releases
 #[derive(Parser, Debug)]
+#[command(version, author, about, long_about = None)]
 pub struct Cli {
-    #[clap(env = "github_owner")]
+    #[clap(long, env)]
     pub github_owner: String,
 
-    #[clap(env = "github_repo")]
+    #[clap(long, env)]
     pub github_repo: String,
 
-    #[clap(env = "gitee_owner")]
+    #[clap(long, env)]
     pub gitee_owner: String,
 
-    #[clap(env = "gitee_repo")]
+    #[clap(long, env)]
     pub gitee_repo: String,
 
-    #[clap(env = "gitee_token")]
+    #[clap(long, env)]
     pub gitee_token: String,
 
-    #[clap(default_value_t = 5)]
-    pub lastest_release_count: u8,
+    /// {github_api}/repos/{owner}/{repo}/releases?per_page={}&page=1
+    #[clap(long, env = "release2gitee__release_body_url_replace", default_value_t = 5)]
+    pub github_latest_release_count: u8,
 
-    #[clap(long)]
-    pub skip_release_body_url_replace: bool,
+    #[clap(long, env = "release2gitee__release_body_url_replace", default_value_t = 100)]
+    pub gitee_delete_release_if_count_gt: u32,
 
-    #[clap(long)]
-    pub skip_lastest_json_url_replace: bool,
+    #[clap(long, env = "release2gitee__release_body_url_replace", default_value_t = true)]
+    pub release_body_url_replace: bool,
+
+    #[clap(long, env = "release2gitee__latest_json_url_replace", default_value_t = true)]
+    pub latest_json_url_replace: bool,
 
     #[command(flatten)]
     pub verbosity: Verbosity<InfoLevel>,
@@ -51,9 +57,9 @@ impl Display for Cli {
             self.gitee_owner,
             self.gitee_owner,
             masked_token,
-            self.lastest_release_count,
-            self.skip_release_body_url_replace,
-            self.skip_lastest_json_url_replace
+            self.github_latest_release_count,
+            self.release_body_url_replace,
+            self.latest_json_url_replace
         )
     }
 }

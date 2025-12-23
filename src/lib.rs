@@ -1,19 +1,23 @@
 pub mod model;
+mod http;
 
 use crate::model::{Assert, Cli, Release};
 use anyhow::bail;
 use indicatif::{ProgressBar, ProgressStyle};
 use log::{error, info};
 use reqwest::blocking::{multipart, Client, Response};
+use reqwest::header::USER_AGENT;
 use std::fs;
 use std::fs::File;
 use std::io::{Read, Write};
 use std::path::Path;
-use std::time::Duration;
+
+const GITHUB_API_URL: &str = "https://api.github.com/repos";
+const GITEE_API_URL: &str = "https://gitee.com/api/v5/repos";
 
 pub fn sync_github_releases_to_gitee(cli: &Cli) -> anyhow::Result<()> {
     // http请求较多，复用client
-    let client = &Client::builder().timeout(Duration::from_secs(60)).build()?;
+    let client = &http::init_client()?;
 
     // 1. 获取github的releases信息
     let github_releases = github_releases(client, cli)?;
@@ -29,23 +33,13 @@ pub fn sync_github_releases_to_gitee(cli: &Cli) -> anyhow::Result<()> {
     Ok(())
 }
 
-const GITHUB_API_URL: &str = "https://api.github.com/repos";
-const GITEE_API_URL: &str = "https://gitee.com/api/v5/repos";
-const USER_AGENT: &str = "reqwest";
-
 /// 获取Github仓库Releases信息
 pub fn github_releases(client: &Client, cli: &Cli) -> anyhow::Result<Vec<Release>> {
     let url = format!(
         "{}/{}/{}/releases?per_page={}&page=1",
-        GITHUB_API_URL, cli.github_owner, cli.github_repo, cli.lastest_release_count
+        GITHUB_API_URL, cli.github_owner, cli.github_repo, cli.github_latest_release_count
     );
-    info!("GET: {url}");
-    // Github要求必须有User-Agent请求头
-    let response: Response = client.get(url).header("User-Agent", USER_AGENT).send()?;
-    if !response.status().is_success() {
-        bail!("github releases获取失败!")
-    }
-    let result = response.text()?;
+    let result = http::get(client, &url)?;
     let mut releases: Vec<Release> = serde_json::from_str(&result)?;
     releases.reverse(); // 倒序, 这样保证同步到gitee时，先处理旧的，再处理新的
 
@@ -61,12 +55,7 @@ pub fn gitee_releases(client: &Client, cli: &Cli) -> anyhow::Result<Vec<Release>
         "{}/{}/{}/releases?per_page=100&page=1", // 最近100个
         GITEE_API_URL, cli.gitee_owner, cli.gitee_repo
     );
-    info!("GET: {url}");
-    let response: Response = client.get(url).send()?;
-    if !response.status().is_success() {
-        bail!("gitee releases信息获取失败!")
-    }
-    let result = response.text()?;
+    let result = http::get(client, &url)?;
     let releases: Vec<Release> = serde_json::from_str(&result)?;
 
     // 记录日志
@@ -272,7 +261,7 @@ fn download_release_asserts(
             info!("下载附件成功: {}", &asset.name);
 
             // 如果是latest.json, 则替换其中的下载地址
-            if !cli.skip_lastest_json_url_replace && asset.name == "latest.json" {
+            if cli.latest_json_url_replace && asset.name == "latest.json" {
                 info!("latest.json文件替换里面的下载地址");
                 let content = fs::read_to_string(&file_path)?;
                 let content = replace_download_url(cli, content);
@@ -299,10 +288,10 @@ fn replace_download_url(cli: &Cli, content: String) -> String {
 }
 
 fn replace_release_body_url(cli: &Cli, content: String) -> String {
-    if cli.skip_release_body_url_replace {
-        content
-    } else {
+    if cli.release_body_url_replace {
         replace_download_url(cli, content)
+    } else {
+        content
     }
 }
 

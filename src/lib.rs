@@ -25,10 +25,12 @@ pub fn sync_github_releases_to_gitee(cli: &Cli) -> anyhow::Result<()> {
     // 2. 获取gitee的releases信息
     let gitee_releases = gitee_releases(client, cli)?;
 
-    // 3. 循环release进行对比并同步
-    for hr in github_releases {
-        let er = gitee_releases.iter().find(|gr| gr.tag_name == hr.tag_name);
-        sync_release(client, cli, &hr, er)?;
+    // 3. 删除gitee中旧的release(免费的容量空间有限)
+
+    // 4. 循环release进行对比并同步
+    for github_release in &github_releases {
+        let gitee_release = gitee_releases.iter().find(|gr| gr.tag_name == github_release.tag_name);
+        sync_release(client, cli, github_release, gitee_release)?;
     }
     Ok(())
 }
@@ -97,6 +99,10 @@ pub fn sync_release(
     // 上传附件到gitee
     upload_release_asserts(client, cli, release, gitee_release, diff_asserts)?;
     Ok(())
+}
+
+fn gitee_release_delete(client: &Client, cli: &Cli, id: u64) {
+
 }
 
 fn gitee_release_create_or_update(

@@ -1,12 +1,29 @@
+pub mod model;
+
 use crate::model::{Assert, Cli, Release};
 use anyhow::bail;
 use indicatif::{ProgressBar, ProgressStyle};
 use log::{error, info};
-use reqwest::blocking::{Client, Response, multipart};
+use reqwest::blocking::{multipart, Client, Response};
 use std::fs;
 use std::fs::File;
 use std::io::{Read, Write};
 use std::path::Path;
+
+pub fn sync_releases(client: &Client, cli: &Cli) -> anyhow::Result<()> {
+    // 1. 获取github的releases信息
+    let github_releases = github_releases(client, cli)?;
+
+    // 2. 获取gitee的releases信息
+    let gitee_releases = gitee_releases(client, cli)?;
+
+    // 3. 循环release进行对比并同步
+    for hr in github_releases {
+        let er = gitee_releases.iter().find(|gr| gr.tag_name == hr.tag_name);
+        sync_gitee_release(client, cli, &hr, er)?;
+    }
+    Ok(())
+}
 
 const GITHUB_API_URL: &str = "https://api.github.com/repos";
 const GITEE_API_URL: &str = "https://gitee.com/api/v5/repos";

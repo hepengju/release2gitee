@@ -1,6 +1,7 @@
 use clap::Parser;
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
+use clap_verbosity_flag::{InfoLevel, Verbosity};
 
 #[derive(Parser, Debug)]
 pub struct Cli {
@@ -27,6 +28,9 @@ pub struct Cli {
 
     #[clap(long)]
     pub skip_lastest_json_url_replace: bool,
+
+    #[command(flatten)]
+    pub verbosity: Verbosity<InfoLevel>,
 }
 
 impl Display for Cli {

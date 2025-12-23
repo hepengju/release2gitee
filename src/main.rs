@@ -1,34 +1,26 @@
-mod sync;
-mod model;
-
-use crate::sync::*;
-use crate::model::*;
 use clap::Parser;
-use env_logger::Env;
+use log::info;
 use reqwest::blocking::Client;
 use std::time::Duration;
-use log::info;
+use release2gitee::model::Cli;
+use release2gitee::sync_releases;
 
+// [Rust 中的命令行应用程序](https://cli.rust-lang.net.cn/book/index.html)
 fn main() -> anyhow::Result<()> {
-    // 默认日志级别改为INFO
-    env_logger::Builder::from_env(Env::default().default_filter_or("info")).init();
-
+    // 参数解析
     let cli = &Cli::parse();
-    let client = &Client::builder().timeout(Duration::from_mins(1)).build()?;
+
+    // 日志配置
+    env_logger::Builder::new()
+        .filter_level(cli.verbosity.log_level_filter())
+        .init();
+    let client = &Client::builder().timeout(Duration::from_secs(60)).build()?;
     info!("命令行解析完成: {cli}");
 
-    // 1. 获取github的releases信息
-    let github_releases = github_releases(client, cli)?;
-
-    // 2. 获取gitee的releases信息
-    let gitee_releases = gitee_releases(client, cli)?;
-
-    // 3. 循环release进行对比并同步
-    for hr in github_releases {
-        let er = gitee_releases.iter().find(|gr| gr.tag_name == hr.tag_name);
-        sync_gitee_release(client, cli, &hr, er)?;
-    }
-
+    // 同步程序
+    sync_releases(client, cli)?;
     info!("同步程序执行完毕");
     Ok(())
 }
+
+

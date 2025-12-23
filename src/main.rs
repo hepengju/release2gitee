@@ -7,12 +7,11 @@ use release2gitee::sync_github_releases_to_gitee;
 fn main() -> anyhow::Result<()> {
     // 参数解析
     let cli = &Cli::parse();
-
     info!("命令行解析完成: {cli}");
 
     // 日志配置
     env_logger::Builder::new()
-        .filter_level(cli.verbosity.log_level_filter())
+        .filter_level(cli.verbosity.into())
         .init();
 
     // 同步程序

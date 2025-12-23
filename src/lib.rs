@@ -9,8 +9,12 @@ use std::fs;
 use std::fs::File;
 use std::io::{Read, Write};
 use std::path::Path;
+use std::time::Duration;
 
-pub fn sync_releases(client: &Client, cli: &Cli) -> anyhow::Result<()> {
+pub fn sync_github_releases_to_gitee(cli: &Cli) -> anyhow::Result<()> {
+    // http请求较多，复用client
+    let client = &Client::builder().timeout(Duration::from_secs(60)).build()?;
+
     // 1. 获取github的releases信息
     let github_releases = github_releases(client, cli)?;
 
@@ -20,7 +24,7 @@ pub fn sync_releases(client: &Client, cli: &Cli) -> anyhow::Result<()> {
     // 3. 循环release进行对比并同步
     for hr in github_releases {
         let er = gitee_releases.iter().find(|gr| gr.tag_name == hr.tag_name);
-        sync_gitee_release(client, cli, &hr, er)?;
+        sync_release(client, cli, &hr, er)?;
     }
     Ok(())
 }
@@ -81,7 +85,7 @@ fn get_tag_names(releases: &Vec<Release>) -> String {
 }
 
 /// 同步Gitee仓库Release
-pub fn sync_gitee_release(
+pub fn sync_release(
     client: &Client,
     cli: &Cli,
     release: &Release,

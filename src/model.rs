@@ -29,7 +29,7 @@ pub struct Cli {
         env = "release2gitee__github_latest_release_count",
         default_value_t = 5
     )]
-    pub github_latest_release_count: u32,
+    pub github_latest_release_count: usize,
 
     // gitee保留最近的N个Release(空间容量限制)
     #[clap(
@@ -37,7 +37,7 @@ pub struct Cli {
         env = "release2gitee__gitee_retain_release_count",
         default_value_t = 999
     )]
-    pub gitee_retain_release_count: u32,
+    pub gitee_retain_release_count: usize,
 
     // 是否将release body中的github仓库url替换为gitee仓库url
     #[clap(

@@ -5,12 +5,12 @@ use crate::model::{Assert, Cli, Release};
 use anyhow::bail;
 use indicatif::{ProgressBar, ProgressStyle};
 use log::{error, info};
-use reqwest::blocking::{Client, multipart};
+use reqwest::blocking::{multipart, Client};
 use reqwest::header::USER_AGENT;
-use std::{env, fs};
 use std::fs::File;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
+use std::{env, fs};
 
 const GITHUB_API_URL: &str = "https://api.github.com/repos";
 const GITEE_API_URL: &str = "https://gitee.com/api/v5/repos";
@@ -103,13 +103,13 @@ fn get_tag_names(releases: &Vec<Release>) -> String {
 
 /// 清理Gitee仓库最老的Releases: 查询最近100个，仅保留最新的N个
 fn clean_oldest_gitee_releases(client: &Client, cli: &Cli, releases: &Vec<Release>) -> AnyResult<()> {
-    if cli.gitee_retain_release_count >= releases.len() as u32 {
+    if cli.gitee_retain_release_count >= releases.len() {
         info!("gitee releases: {}个, 无需清理",releases.len());
         return Ok(());
     } else {
-        let clean_count = releases.len() - cli.gitee_retain_release_count as usize;
+        let clean_count = releases.len() - cli.gitee_retain_release_count;
         info!("gitee releases: {}个, 需清理: {}个",releases.len(), clean_count);
-        for release in releases.iter().take(clean_count) {
+        for release in releases.iter().skip(cli.gitee_retain_release_count) {
             gitee_release_delete(client, cli, release.id)?;
             info!("gitee release删除成功: {}", release.tag_name);
         }

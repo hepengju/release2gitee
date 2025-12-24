@@ -53,25 +53,24 @@ Options:
 
 # 执行同步（网络问题可能出错，可重试执行，会复用已下载的文件及对比release分支的内容和附件列表）
 $ ./release2gitee
-$ release2gitee.exe --github-repo=release2gitee --gitee-repo=release2gitee
-[2025-12-24T08:08:25Z INFO ] params: github_owner: hepengju, github_repo: release2gitee, gitee_owner: hepengju, gitee_repo: release2gitee, gitee_token: 449cb0c5************************, github_latest_release_count: 5, gitee_retain_release_count: 999, release_body_url_replace: true, latest_json_url_replace: true
-[2025-12-24T08:08:25Z INFO ] GET: https://api.github.com/repos/hepengju/release2gitee/releases?per_page=5&page=1
-[2025-12-24T08:08:26Z INFO ] github releases获取最新的2个: v0.9.0, v0.1.0
-[2025-12-24T08:08:26Z INFO ] GET: https://gitee.com/api/v5/repos/hepengju/release2gitee/releases?per_page=100&page=1
-[2025-12-24T08:08:26Z INFO ] gitee releases获取到1个: v0.1.0
-[2025-12-24T08:08:26Z INFO ] gitee releases 无需清理
-[2025-12-24T08:08:26Z INFO ] PATCH: https://gitee.com/api/v5/repos/hepengju/release2gitee/releases/560076
-[2025-12-24T08:08:26Z INFO ] gitee release更新成功: v0.1.0!
-[2025-12-24T08:08:26Z INFO ] gitee release与github release附件相同: v0.1.0!
-[2025-12-24T08:08:26Z INFO ] POST: https://gitee.com/api/v5/repos/hepengju/release2gitee/releases
-[2025-12-24T08:08:27Z INFO ] gitee release创建成功: v0.9.0!
-[2025-12-24T08:08:27Z INFO ] 临时目录创建: C:\Users\he_pe\AppData\Local\Temp\release2gitee\v0.9.0
-[2025-12-24T08:08:27Z INFO ] downloading: https://github.com/hepengju/release2gitee/releases/download/v0.9.0/release2gitee.exe
-00:00:02 [########################################] 5.59 MiB/5.59 MiB (1.93 MiB/s, 0s)                                  
-[2025-12-24T08:08:31Z INFO ] 临时目录存在: C:\Users\he_pe\AppData\Local\Temp\release2gitee\v0.9.0
-[2025-12-24T08:08:31Z INFO ] uploading: https://gitee.com/api/v5/repos/hepengju/release2gitee/releases/561140/attach_files, file: release2gitee.exe
-00:00:01 [########################################] 5.59 MiB/5.59 MiB (3.51 MiB/s, 0s)                                  
-[2025-12-24T08:08:33Z INFO ] 同步程序执行完成
+[2025-12-24T08:20:06Z INFO ] params: github_owner: hepengju, github_repo: release2gitee, gitee_owner: hepengju, gitee_repo: release2gitee, gitee_token: 449cb0c5************************, github_latest_release_count: 5, gitee_retain_release_count: 999, release_body_url_replace: true, latest_json_url_replace: true
+[2025-12-24T08:20:06Z INFO ] GET: https://api.github.com/repos/hepengju/release2gitee/releases?per_page=5&page=1
+[2025-12-24T08:20:07Z INFO ] github releases获取最新的2个: v0.9.0, v0.1.0
+[2025-12-24T08:20:07Z INFO ] GET: https://gitee.com/api/v5/repos/hepengju/release2gitee/releases?per_page=100&page=1
+[2025-12-24T08:20:08Z INFO ] gitee releases获取到1个: v0.1.0
+[2025-12-24T08:20:08Z INFO ] gitee releases 无需清理
+[2025-12-24T08:20:08Z INFO ] PATCH: https://gitee.com/api/v5/repos/hepengju/release2gitee/releases/560076
+[2025-12-24T08:20:08Z INFO ] gitee release更新成功: v0.1.0!
+[2025-12-24T08:20:08Z INFO ] gitee release与github release附件相同: v0.1.0!
+[2025-12-24T08:20:08Z INFO ] POST: https://gitee.com/api/v5/repos/hepengju/release2gitee/releases
+[2025-12-24T08:20:08Z INFO ] gitee release创建成功: v0.9.0!
+[2025-12-24T08:20:08Z INFO ] 临时目录创建: C:\Users\he_pe\AppData\Local\Temp\release2gitee\v0.9.0
+[2025-12-24T08:20:08Z INFO ] downloading: https://github.com/hepengju/release2gitee/releases/download/v0.9.0/release2gitee.exe
+00:00:04 [#################################################################] 5.59 MiB/5.59 MiB (1.16 MiB/s, 0s)
+[2025-12-24T08:20:15Z INFO ] 临时目录存在: C:\Users\he_pe\AppData\Local\Temp\release2gitee\v0.9.0
+[2025-12-24T08:20:15Z INFO ] uploading: https://gitee.com/api/v5/repos/hepengju/release2gitee/releases/561151/attach_files, file: release2gitee.exe
+00:00:01 [#################################################################] 5.59 MiB/5.59 MiB (4.39 MiB/s, 0s)
+[2025-12-24T08:20:16Z INFO ] 同步程序执行完成
 ```
 
 # 背景

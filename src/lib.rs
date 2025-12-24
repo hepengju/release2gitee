@@ -5,7 +5,7 @@ use crate::model::{Assert, Cli, Release};
 use anyhow::bail;
 use indicatif::{ProgressBar, ProgressStyle};
 use log::{error, info};
-use reqwest::blocking::{multipart, Client};
+use reqwest::blocking::{Client, multipart};
 use reqwest::header::USER_AGENT;
 use std::fs::File;
 use std::io::{Read, Write};
@@ -39,17 +39,17 @@ pub fn sync_github_releases_to_gitee(cli: &Cli) -> AnyResult<()> {
     // http请求较多，复用client
     let client = &http::init_client()?;
 
-    // 1. 获取github的releases信息
+    // 1. 获取github的releases信息: 新的在前面
     let github_releases = &github_releases(client, cli)?;
 
-    // 2. 获取gitee的releases信息
+    // 2. 获取gitee的releases信息: 新的在前面
     let gitee_releases = &gitee_releases(client, cli)?;
 
     // 3. 清理gitee中旧的release(免费的容量空间有限)
     clean_oldest_gitee_releases(client, cli, gitee_releases)?;
 
-    // 4. 循环release进行对比并同步
-    for github_release in github_releases {
+    // 4. 循环release进行对比并同步: 倒序处理, 先同步旧的版本
+    for github_release in github_releases.iter().rev() {
         let gitee_release = gitee_releases
             .iter()
             .find(|gr| gr.tag_name == github_release.tag_name);
@@ -102,13 +102,21 @@ fn get_tag_names(releases: &Vec<Release>) -> String {
 }
 
 /// 清理Gitee仓库最老的Releases: 查询最近100个，仅保留最新的N个
-fn clean_oldest_gitee_releases(client: &Client, cli: &Cli, releases: &Vec<Release>) -> AnyResult<()> {
+fn clean_oldest_gitee_releases(
+    client: &Client,
+    cli: &Cli,
+    releases: &Vec<Release>,
+) -> AnyResult<()> {
     if cli.gitee_retain_release_count >= releases.len() {
-        info!("gitee releases: {}个, 无需清理",releases.len());
+        info!("gitee releases: {}个, 无需清理", releases.len());
         return Ok(());
     } else {
         let clean_count = releases.len() - cli.gitee_retain_release_count;
-        info!("gitee releases: {}个, 需清理: {}个",releases.len(), clean_count);
+        info!(
+            "gitee releases: {}个, 需清理: {}个",
+            releases.len(),
+            clean_count
+        );
         for release in releases.iter().skip(cli.gitee_retain_release_count) {
             gitee_release_delete(client, cli, release.id)?;
             info!("gitee release删除成功: {}", release.tag_name);
@@ -251,53 +259,18 @@ fn download_release_asserts(
         }
 
         info!("开始下载附件: {}", &asset.name);
-        let mut response = client
-            .get(&asset.browser_download_url)
-            .header("User-Agent", USER_AGENT)
-            .send()?;
+        http::download(client, &asset.browser_download_url, &file_path)?;
 
-        if response.status().is_success() {
-            // 获取内容长度用于进度条
-            let total_size = response.content_length().unwrap_or(0);
-            let pb = ProgressBar::new(total_size);
-
-            pb.set_style(
-                ProgressStyle::with_template(
-                    "{elapsed_precise:.white.dim} {wide_bar:.cyan} {bytes}/{total_bytes} ({bytes_per_sec}, {eta})",
-                )?.progress_chars("█▉▊▋▌▍▎▏  "),
-            );
-
-            // 创建文件
-            let mut file = File::create(&file_path)?;
-
-            // 下载并更新进度
-            // 分块读取、写入并更新进度
-            let mut buffer = [0u8; 8192]; // 8KB 缓冲区
-            loop {
-                let n = response.read(&mut buffer)?;
-                if n == 0 {
-                    break;
-                }
-                file.write_all(&buffer[..n])?;
-                pb.inc(n as u64);
-            }
-            pb.finish_with_message("");
-            info!("下载附件成功: {}", &asset.name);
-
-            // 如果是latest.json, 则替换其中的下载地址
-            if cli.latest_json_url_replace && asset.name == "latest.json" {
-                info!("latest.json文件替换里面的下载地址");
-                let content = fs::read_to_string(&file_path)?;
-                let content = replace_download_url(cli, content);
-                fs::write(&file_path, content)?;
-            }
-        } else {
-            error!("下载附件失败: {}", &asset.name);
+        // 如果是latest.json, 则替换其中的下载地址
+        if cli.latest_json_url_replace && asset.name == "latest.json" {
+            info!("latest.json文件替换里面的下载地址");
+            let content = fs::read_to_string(&file_path)?;
+            let content = replace_download_url(cli, content);
+            fs::write(&file_path, content)?;
         }
     }
     Ok(())
 }
-
 
 /// 上传附件
 fn upload_release_asserts(
@@ -314,7 +287,7 @@ fn upload_release_asserts(
         let file_path = tmp_dir.join(&asset.name);
 
         // 检查文件是否存在
-        if file_path.exists() {
+        if !file_path.exists() {
             error!("本地文件不存在，跳过上传: {}", file_path.display());
             continue;
         }
@@ -324,21 +297,7 @@ fn upload_release_asserts(
             "{}/{}/{}/releases/{}/attach_files",
             GITEE_API_URL, cli.gitee_owner, cli.gitee_repo, gitee_release.id,
         );
-
-        let form = multipart::Form::new().file("file", file_path)?;
-
-        // 上传文件到Gitee
-        let upload_response = client
-            .post(&upload_url)
-            .header("Authorization", format!("token {}", cli.gitee_token))
-            .multipart(form)
-            .send()?;
-
-        if upload_response.status().is_success() {
-            info!("上传附件到gitee成功: {}", &asset.name);
-        } else {
-            error!("上传附件到gitee失败: {}", &asset.name);
-        }
+        http::upload(client, &upload_url, &cli.gitee_token, &file_path)?;
     }
     Ok(())
 }

@@ -61,7 +61,7 @@ fn post_or_patch<T: Serialize + ?Sized>(
         .json(json)
         .send()?;
     let text = extract_response_text(res)?;
-    info!("response: {text}");
+    debug!("response: {text}");
     Ok(text)
 }
 
@@ -94,8 +94,7 @@ fn extract_response_text(res: Response) -> AnyResult<String> {
 }
 
 pub fn download(client: &Client, url: &str, file_path: &PathBuf) -> AnyResult<()> {
-    let name = file_path.file_name().unwrap().display();
-    info!("downloading: {}, file: {}", url, name);
+    info!("downloading: {}", url);
 
     let mut res = client
         .get(url)
@@ -124,7 +123,7 @@ pub fn download(client: &Client, url: &str, file_path: &PathBuf) -> AnyResult<()
         pb.finish_with_message("");
         Ok(())
     } else {
-        bail!("下载文件失败: {}", name);
+        bail!("下载文件失败: {}", file_path.file_name().unwrap().display());
     }
 }
 
@@ -163,7 +162,7 @@ fn get_progress_bar(size: u64) -> AnyResult<ProgressBar> {
     let pb = ProgressBar::new(size);
     pb.set_style(
         ProgressStyle::default_bar()
-            .template("{elapsed_precise:.white.dim} [{elapsed_precise}] [{bar:40.cyan/blue}] {bytes}/{total_bytes} ({bytes_per_sec}, {eta})")?
+            .template("{elapsed_precise:.white.dim} [{bar:40.cyan/blue}] {bytes}/{total_bytes} ({bytes_per_sec}, {eta})")?
             .progress_chars("#>-"),
     );
     Ok(pb)

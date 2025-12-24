@@ -69,7 +69,7 @@ pub fn github_releases(client: &Client, cli: &Cli) -> AnyResult<Vec<Release>> {
 
     // 记录日志
     let tag_names = get_tag_names(&releases);
-    info!("github releases最近的{}个成功: {tag_names}", releases.len());
+    info!("github releases获取最新的{}个: {tag_names}", releases.len());
     Ok(releases)
 }
 
@@ -256,7 +256,6 @@ fn download_release_asserts(
             }
         }
 
-        info!("开始下载附件: {}", &asset.name);
         http::download(client, &asset.browser_download_url, &file_path)?;
 
         // 如果是latest.json, 则替换其中的下载地址

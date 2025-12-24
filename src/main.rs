@@ -17,6 +17,6 @@ fn main() -> anyhow::Result<()> {
 
     // 同步程序
     sync_github_releases_to_gitee(cli)?;
-    info!("finish");
+    info!("同步程序执行完成");
     Ok(())
 }

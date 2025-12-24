@@ -7,10 +7,10 @@ use indicatif::{ProgressBar, ProgressStyle};
 use log::{error, info};
 use reqwest::blocking::{Client, multipart};
 use reqwest::header::USER_AGENT;
-use std::fs;
+use std::{env, fs};
 use std::fs::File;
 use std::io::{Read, Write};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 const GITHUB_API_URL: &str = "https://api.github.com/repos";
 const GITEE_API_URL: &str = "https://gitee.com/api/v5/repos";
@@ -155,13 +155,12 @@ fn gitee_release_create_or_update(
     client: &Client,
     cli: &Cli,
     release: &Release,
-    er: Option<&Release>,
+    gitee_release: Option<&Release>,
 ) -> AnyResult<Release> {
-    if er.is_none() {
+    if gitee_release.is_none() {
         Ok(gitee_release_create(client, cli, &release)?)
     } else {
-        let er = er.unwrap();
-
+        let er = gitee_release.unwrap();
         let new_body = replace_release_body_url(cli, release.body.clone());
 
         if release.name != er.name
@@ -234,14 +233,11 @@ fn download_release_asserts(
     release: &Release,
     diff_asserts: &Vec<Assert>,
 ) -> AnyResult<()> {
-    info!("创建目录: {}", &release.tag_name);
-    if !Path::new(&release.tag_name).exists() {
-        fs::create_dir(&release.tag_name)?;
-    }
+    let tmp_dir = tmp_dir_repo_tag(cli, release)?;
 
     for asset in diff_asserts {
         // 先判断文件是否存在，存在且大小一致则忽略下载
-        let file_path = format!("{}/{}", &release.tag_name, &asset.name);
+        let file_path = tmp_dir.join(&asset.name);
         if Path::new(&file_path).exists() {
             // 如果文件存在，检查大小是否一致
             if let Some(asset_size) = asset.size {
@@ -302,26 +298,6 @@ fn download_release_asserts(
     Ok(())
 }
 
-// 替换下载地址
-fn replace_download_url(cli: &Cli, content: String) -> String {
-    // https://github.com/hepengju/redis-me
-    // https://gitee.com/hepengju/redis-me
-    let src = format!(
-        "https://github.com/{}/{}",
-        cli.github_owner, cli.github_repo
-    );
-    let tar = format!("https://gitee.com/{}/{}", cli.gitee_owner, cli.gitee_repo);
-    let content = content.replace(&src, &tar);
-    content
-}
-
-fn replace_release_body_url(cli: &Cli, content: String) -> String {
-    if cli.release_body_url_replace {
-        replace_download_url(cli, content)
-    } else {
-        content
-    }
-}
 
 /// 上传附件
 fn upload_release_asserts(
@@ -331,12 +307,15 @@ fn upload_release_asserts(
     gitee_release: &Release,
     diff_asserts: &Vec<Assert>,
 ) -> AnyResult<()> {
+    let tmp_dir = tmp_dir_repo_tag(cli, release)?;
+
     for asset in diff_asserts {
-        let file_path = &format!("{}/{}", &release.tag_name, &asset.name);
+        //let file_path = &format!("{}/{}", &release.tag_name, &asset.name);
+        let file_path = tmp_dir.join(&asset.name);
 
         // 检查文件是否存在
-        if !Path::new(file_path).exists() {
-            error!("本地文件不存在，跳过上传: {}", file_path);
+        if file_path.exists() {
+            error!("本地文件不存在，跳过上传: {}", file_path.display());
             continue;
         }
 
@@ -362,4 +341,40 @@ fn upload_release_asserts(
         }
     }
     Ok(())
+}
+
+/// 创建临时目录: ~/tmp/github_repo/tag_name
+fn tmp_dir_repo_tag(cli: &Cli, release: &Release) -> AnyResult<PathBuf> {
+    let mut tmp_dir = env::temp_dir();
+    tmp_dir.push(cli.github_repo.clone());
+    tmp_dir.push(release.tag_name.clone());
+
+    if !tmp_dir.exists() {
+        fs::create_dir_all(&tmp_dir)?;
+        info!("创建临时目录: {}", &tmp_dir.display())
+    } else {
+        info!("临时目录已存在: {}", &tmp_dir.display());
+    }
+    Ok(tmp_dir)
+}
+
+// 替换下载地址
+fn replace_download_url(cli: &Cli, content: String) -> String {
+    // https://github.com/hepengju/redis-me
+    // https://gitee.com/hepengju/redis-me
+    let src = format!(
+        "https://github.com/{}/{}",
+        cli.github_owner, cli.github_repo
+    );
+    let tar = format!("https://gitee.com/{}/{}", cli.gitee_owner, cli.gitee_repo);
+    let content = content.replace(&src, &tar);
+    content
+}
+
+fn replace_release_body_url(cli: &Cli, content: String) -> String {
+    if cli.release_body_url_replace {
+        replace_download_url(cli, content)
+    } else {
+        content
+    }
 }

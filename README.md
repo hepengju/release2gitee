@@ -4,30 +4,52 @@
 # 推荐参数配置到环境变量中
 vim ~/.bashrc
 
-export gitee_owner=hepengju
-export gitee_repo=redis-me
+# release2gitee
 export github_owner=hepengju
 export github_repo=redis-me
-export gitee_token=449cb0c5************************
+export gitee_owner=hepengju
+export gitee_repo=redis-me
+export gitee_token=449cb0c54b40e82c0bd8861d5d9411fb
+#export release2gitee__github_latest_release_count=5
+#export release2gitee__gitee_retain_release_count=5
+#export release2gitee__release_body_url_replace=false
+#export release2gitee__latest_json_url_replace=false
 
 source ~/.bashrc
 
 # 查看帮助
-$ ./release2gitee --help
-Usage: release2gitee.exe [OPTIONS] <GITHUB_OWNER> <GITHUB_REPO> <GITEE_OWNER> <GITEE_REPO> <GITEE_TOKEN> [LASTEST_RELEASE_COUNT]
+$ ./release2gitee.exe --help
+sync github releases to gitee releases
 
-Arguments:
-  <GITHUB_OWNER>           [env: github_owner=hepengju]
-  <GITHUB_REPO>            [env: github_repo=redis-me]
-  <GITEE_OWNER>            [env: gitee_owner=hepengju]
-  <GITEE_REPO>             [env: gitee_repo=redis-me]
-  <GITEE_TOKEN>            [env: gitee_token=449cb0c5************************]
-  [LASTEST_RELEASE_COUNT]  [default: 10]
+Usage: release2gitee.exe [OPTIONS] --github-owner <GITHUB_OWNER> --github-repo <GITHUB_REPO> --gitee-owner <GITEE_OWNER> --gitee-repo <GITEE_REPO> --gitee-token <GITEE_TOKEN>
 
 Options:
-      --skip-release-body-url-replace  
-      --skip-lastest-json-url-replace  
-  -h, --help                           Print help
+      --github-owner <GITHUB_OWNER>
+          [env: GITHUB_OWNER=hepengju]
+      --github-repo <GITHUB_REPO>
+          [env: GITHUB_REPO=redis-me]
+      --gitee-owner <GITEE_OWNER>
+          [env: GITEE_OWNER=hepengju]
+      --gitee-repo <GITEE_REPO>
+          [env: GITEE_REPO=redis-me]
+      --gitee-token <GITEE_TOKEN>
+          [env: GITEE_TOKEN=449cb0c54b40e82c0bd8861d5d9411fb]
+      --github-latest-release-count <GITHUB_LATEST_RELEASE_COUNT>
+          [env: release2gitee__github_latest_release_count=] [default: 5]
+      --gitee-retain-release-count <GITEE_RETAIN_RELEASE_COUNT>
+          [env: release2gitee__gitee_retain_release_count=] [default: 999]
+      --release-body-url-replace
+          [env: release2gitee__release_body_url_replace=]
+      --latest-json-url-replace
+          [env: release2gitee__latest_json_url_replace=]
+  -v, --verbose...
+          Increase logging verbosity
+  -q, --quiet...
+          Decrease logging verbosity
+  -h, --help
+          Print help
+  -V, --version
+          Print version
 
 # 执行同步（网络问题可能出错，可重试执行，会复用已下载的文件及对比release分支的内容和附件列表）
 $ ./release2gitee

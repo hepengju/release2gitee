@@ -307,9 +307,9 @@ fn tmp_dir_repo_tag(cli: &Cli, release: &Release) -> AnyResult<PathBuf> {
 
     if !tmp_dir.exists() {
         fs::create_dir_all(&tmp_dir)?;
-        info!("创建临时目录: {}", &tmp_dir.display())
+        info!("临时目录创建: {}", &tmp_dir.display())
     } else {
-        info!("临时目录已存在: {}", &tmp_dir.display());
+        info!("临时目录存在: {}", &tmp_dir.display());
     }
     Ok(tmp_dir)
 }

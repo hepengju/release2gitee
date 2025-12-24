@@ -1,7 +1,7 @@
 use clap::Parser;
+use clap_verbosity_flag::{InfoLevel, Verbosity};
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
-use clap_verbosity_flag::{InfoLevel, Verbosity};
 
 /// sync github releases to gitee releases
 #[derive(Parser, Debug)]
@@ -24,19 +24,35 @@ pub struct Cli {
 
     // {github_api}/repos/{owner}/{repo}/releases?per_page={}&page=1
     // github查询最新的N个Releases
-    #[clap(long, env = "release2gitee__github_latest_release_count", default_value_t = 5)]
+    #[clap(
+        long,
+        env = "release2gitee__github_latest_release_count",
+        default_value_t = 5
+    )]
     pub github_latest_release_count: u32,
 
     // gitee保留最近的N个Release(空间容量限制)
-    #[clap(long, env = "release2gitee__gitee_retain_release_count", default_value_t = 999)]
+    #[clap(
+        long,
+        env = "release2gitee__gitee_retain_release_count",
+        default_value_t = 999
+    )]
     pub gitee_retain_release_count: u32,
 
     // 是否将release body中的github仓库url替换为gitee仓库url
-    #[clap(long, env = "release2gitee__release_body_url_replace", default_value_t = true)]
+    #[clap(
+        long,
+        env = "release2gitee__release_body_url_replace",
+        default_value_t = true
+    )]
     pub release_body_url_replace: bool,
 
     // 是否将latest.json文件中的github仓库url替换为gitee仓库url（Tauri应用的自动更新依赖文件）
-    #[clap(long, env = "release2gitee__latest_json_url_replace", default_value_t = true)]
+    #[clap(
+        long,
+        env = "release2gitee__latest_json_url_replace",
+        default_value_t = true
+    )]
     pub latest_json_url_replace: bool,
 
     #[command(flatten)]
@@ -55,13 +71,14 @@ impl Display for Cli {
 
         write!(
             f,
-            "github_owner: {}, github_repo: {}, gitee_owner: {}, gitee_repo: {}, gitee_token: {}, lastest_release_count: {}, skip_release_body_url_replace: {}, skip_lastest_json_url_replace: {}",
+            "github_owner: {}, github_repo: {}, gitee_owner: {}, gitee_repo: {}, gitee_token: {}, github_latest_release_count: {}, gitee_retain_release_count: {}, release_body_url_replace: {}, latest_json_url_replace: {}",
             self.github_owner,
             self.github_repo,
             self.gitee_owner,
-            self.gitee_owner,
+            self.gitee_repo,
             masked_token,
             self.github_latest_release_count,
+            self.gitee_retain_release_count,
             self.release_body_url_replace,
             self.latest_json_url_replace
         )

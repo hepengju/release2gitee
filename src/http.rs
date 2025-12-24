@@ -162,7 +162,7 @@ fn get_progress_bar(size: u64) -> AnyResult<ProgressBar> {
     let pb = ProgressBar::new(size);
     pb.set_style(
         ProgressStyle::default_bar()
-            .template("{elapsed_precise:.white.dim} [{bar:40.cyan/blue}] {bytes}/{total_bytes} ({bytes_per_sec}, {eta})")?
+            .template("{elapsed_precise:.white.dim} [{wide_bar:.cyan}] {bytes}/{total_bytes} ({bytes_per_sec}, {eta})")?
             .progress_chars("#>-"),
     );
     Ok(pb)

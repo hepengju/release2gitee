@@ -1,5 +1,5 @@
 use clap::Parser;
-use log::info;
+use log::{info};
 use release2gitee::model::Cli;
 use release2gitee::{check_cli, sync_github_releases_to_gitee};
 
@@ -9,13 +9,14 @@ fn main() -> anyhow::Result<()> {
     let cli = &Cli::parse();
     env_logger::Builder::new()
         .filter_level(cli.verbosity.into())
+        .format_target(false)
         .init();
 
-    info!("命令行解析完成: {cli}");
+    info!("params: {cli}");
     check_cli(cli)?;
 
     // 同步程序
     sync_github_releases_to_gitee(cli)?;
-    info!("同步程序执行完毕");
+    info!("finish");
     Ok(())
 }

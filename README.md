@@ -9,7 +9,7 @@ export github_owner=hepengju
 export github_repo=redis-me
 export gitee_owner=hepengju
 export gitee_repo=redis-me
-export gitee_token=449cb0c54b40e82c0bd8861d5d9411fb
+export gitee_token=449cb0c5************************
 #export release2gitee__github_latest_release_count=5
 #export release2gitee__gitee_retain_release_count=5
 #export release2gitee__release_body_url_replace=false
@@ -33,7 +33,7 @@ Options:
       --gitee-repo <GITEE_REPO>
           [env: GITEE_REPO=redis-me]
       --gitee-token <GITEE_TOKEN>
-          [env: GITEE_TOKEN=449cb0c54b40e82c0bd8861d5d9411fb]
+          [env: GITEE_TOKEN=449cb0c5************************]
       --github-latest-release-count <GITHUB_LATEST_RELEASE_COUNT>
           [env: release2gitee__github_latest_release_count=] [default: 5]
       --gitee-retain-release-count <GITEE_RETAIN_RELEASE_COUNT>

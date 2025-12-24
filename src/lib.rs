@@ -40,16 +40,16 @@ pub fn sync_github_releases_to_gitee(cli: &Cli) -> AnyResult<()> {
     let client = &http::init_client()?;
 
     // 1. 获取github的releases信息
-    let github_releases = github_releases(client, cli)?;
+    let github_releases = &github_releases(client, cli)?;
 
     // 2. 获取gitee的releases信息
-    let gitee_releases = gitee_releases(client, cli)?;
+    let gitee_releases = &gitee_releases(client, cli)?;
 
     // 3. 清理gitee中旧的release(免费的容量空间有限)
-    clean_gitee_releases(client, cli)?;
+    clean_oldest_gitee_releases(client, cli, gitee_releases)?;
 
     // 4. 循环release进行对比并同步
-    for github_release in &github_releases {
+    for github_release in github_releases {
         let gitee_release = gitee_releases
             .iter()
             .find(|gr| gr.tag_name == github_release.tag_name);
@@ -66,6 +66,7 @@ pub fn github_releases(client: &Client, cli: &Cli) -> AnyResult<Vec<Release>> {
     );
     let result = http::get(client, &url)?;
     let mut releases: Vec<Release> = serde_json::from_str(&result)?;
+    releases.sort_by_key(|r| r.id);
     releases.reverse(); // 倒序, 这样保证同步到gitee时，先处理旧的，再处理新的
 
     // 记录日志
@@ -81,7 +82,9 @@ pub fn gitee_releases(client: &Client, cli: &Cli) -> AnyResult<Vec<Release>> {
         GITEE_API_URL, cli.gitee_owner, cli.gitee_repo
     );
     let result = http::get(client, &url)?;
-    let releases: Vec<Release> = serde_json::from_str(&result)?;
+    let mut releases: Vec<Release> = serde_json::from_str(&result)?;
+    releases.sort_by_key(|r| r.id);
+    releases.reverse();
 
     // 记录日志
     let tag_names = get_tag_names(&releases);
@@ -98,7 +101,19 @@ fn get_tag_names(releases: &Vec<Release>) -> String {
         .join(", ")
 }
 
-fn clean_gitee_releases(client: &Client, cli: &Cli) -> AnyResult<()> {
+/// 清理Gitee仓库最老的Releases: 查询最近100个，仅保留最新的N个
+fn clean_oldest_gitee_releases(client: &Client, cli: &Cli, releases: &Vec<Release>) -> AnyResult<()> {
+    if cli.gitee_retain_release_count >= releases.len() as u32 {
+        info!("gitee releases: {}个, 无需清理",releases.len());
+        return Ok(());
+    } else {
+        let clean_count = releases.len() - cli.gitee_retain_release_count as usize;
+        info!("gitee releases: {}个, 需清理: {}个",releases.len(), clean_count);
+        for release in releases.iter().take(clean_count) {
+            gitee_release_delete(client, cli, release.id)?;
+            info!("gitee release删除成功: {}", release.tag_name);
+        }
+    }
     Ok(())
 }
 

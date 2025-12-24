@@ -93,7 +93,9 @@ fn extract_response_text(res: Response) -> AnyResult<String> {
 }
 
 pub fn download(client: &Client, url: &str, file_path: &PathBuf) -> AnyResult<()> {
-    info!("downloading: {}", url);
+    let name = file_path.file_name().unwrap().display();
+    info!("downloading: {}, file: {}", url, name);
+
     let mut res = client
         .get(url)
         .header("User-Agent", reqwest::header::USER_AGENT)
@@ -103,12 +105,7 @@ pub fn download(client: &Client, url: &str, file_path: &PathBuf) -> AnyResult<()
         // 获取内容长度用于进度条
         let total_size = res.content_length().unwrap_or(0);
         let pb = ProgressBar::new(total_size);
-
-        pb.set_style(
-            ProgressStyle::with_template(
-                "{elapsed_precise:.white.dim} {wide_bar:.cyan} {bytes}/{total_bytes} ({bytes_per_sec}, {eta})",
-            )?.progress_chars("█▉▊▋▌▍▎▏  "),
-        );
+        set_progress_bar_style(&pb)?;
 
         // 创建文件
         let mut file = File::create(&file_path)?;
@@ -127,13 +124,15 @@ pub fn download(client: &Client, url: &str, file_path: &PathBuf) -> AnyResult<()
         pb.finish_with_message("");
         Ok(())
     } else {
-        bail!("下载文件失败: {}", file_path.file_name().unwrap().display());
+        bail!("下载文件失败: {}", name);
     }
 }
 
+
+
 pub fn upload(client: &Client, url: &str, token: &str, file_path: &PathBuf) -> AnyResult<()> {
-    info!("upload: {}", url);
-    info!("file: {}", file_path.display());
+    let name = file_path.file_name().unwrap().display();
+    info!("uploading: {}, file: {}", url, name);
 
     let form = multipart::Form::new().file("file", file_path)?;
 
@@ -147,5 +146,14 @@ pub fn upload(client: &Client, url: &str, token: &str, file_path: &PathBuf) -> A
     if !upload_response.status().is_success() {
         bail!("上传文件失败: {}", file_path.file_name().unwrap().display());
     }
+    Ok(())
+}
+
+fn set_progress_bar_style(pb: &ProgressBar) -> AnyResult<()> {
+    pb.set_style(
+        ProgressStyle::default_bar()
+            .template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {bytes}/{total_bytes} ({bytes_per_sec}, {eta})")?
+            .progress_chars("#>-"),
+    );
     Ok(())
 }

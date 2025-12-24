@@ -17,6 +17,14 @@ const GITEE_API_URL: &str = "https://gitee.com/api/v5/repos";
 pub type AnyResult<T> = anyhow::Result<T>;
 
 pub fn check_cli(cli: &Cli) -> AnyResult<()> {
+    if cli.github_latest_release_count < 1 {
+        bail!("github_latest_release_count must be greater than 0.")
+    }
+
+    if cli.gitee_retain_release_count < 1 {
+        bail!("gitee_retain_release_count must be greater than 0.")
+    }
+
     if cli.gitee_retain_release_count < cli.github_latest_release_count {
         bail!(
             "gitee_retain_release_count ({}) must be greater than or equal to github_latest_release_count ({}).",

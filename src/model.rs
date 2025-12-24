@@ -23,8 +23,8 @@ pub struct Cli {
     pub gitee_token: String,
 
     // {github_api}/repos/{owner}/{repo}/releases?per_page={}&page=1
-    /// github查询最新的N个Releases
-    #[clap(long, env = "release2gitee__release_body_url_replace", default_value_t = 5)]
+    // github查询最新的N个Releases
+    #[clap(long, env = "release2gitee__github_latest_release_count", default_value_t = 5)]
     pub github_latest_release_count: u32,
 
     // gitee保留最近的N个Release(空间容量限制)

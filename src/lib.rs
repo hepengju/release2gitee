@@ -1,14 +1,12 @@
+extern crate core;
+
 mod http;
 pub mod model;
 
 use crate::model::{Assert, Cli, Release};
 use anyhow::bail;
-use indicatif::{ProgressBar, ProgressStyle};
 use log::{error, info};
-use reqwest::blocking::{Client, multipart};
-use reqwest::header::USER_AGENT;
-use std::fs::File;
-use std::io::{Read, Write};
+use reqwest::blocking::{Client};
 use std::path::{Path, PathBuf};
 use std::{env, fs};
 
@@ -88,7 +86,7 @@ pub fn gitee_releases(client: &Client, cli: &Cli) -> AnyResult<Vec<Release>> {
 
     // 记录日志
     let tag_names = get_tag_names(&releases);
-    info!("gitee releases获取{}个: {}", releases.len(), tag_names);
+    info!("gitee releases获取到{}个: {}", releases.len(), tag_names);
     Ok(releases)
 }
 
@@ -108,7 +106,7 @@ fn clean_oldest_gitee_releases(
     releases: &Vec<Release>,
 ) -> AnyResult<()> {
     if cli.gitee_retain_release_count >= releases.len() {
-        info!("gitee releases: {}个, 无需清理", releases.len());
+        info!("gitee releases 无需清理");
         return Ok(());
     } else {
         let clean_count = releases.len() - cli.gitee_retain_release_count;

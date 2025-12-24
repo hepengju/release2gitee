@@ -1,11 +1,12 @@
-use crate::{AnyResult, replace_download_url};
+use crate::AnyResult;
 use anyhow::bail;
 use indicatif::{ProgressBar, ProgressStyle};
-use log::{debug, error, info, log};
+use log::{debug, info};
+use multipart::Part;
 use reqwest::blocking::{Client, RequestBuilder, Response, multipart};
 use serde::Serialize;
-use std::fs;
 use std::fs::File;
+use std::io;
 use std::io::{Read, Write};
 use std::path::PathBuf;
 use std::time::Duration;
@@ -104,8 +105,7 @@ pub fn download(client: &Client, url: &str, file_path: &PathBuf) -> AnyResult<()
     if res.status().is_success() {
         // 获取内容长度用于进度条
         let total_size = res.content_length().unwrap_or(0);
-        let pb = ProgressBar::new(total_size);
-        set_progress_bar_style(&pb)?;
+        let pb = get_progress_bar(total_size)?;
 
         // 创建文件
         let mut file = File::create(&file_path)?;
@@ -128,20 +128,30 @@ pub fn download(client: &Client, url: &str, file_path: &PathBuf) -> AnyResult<()
     }
 }
 
-
-
 pub fn upload(client: &Client, url: &str, token: &str, file_path: &PathBuf) -> AnyResult<()> {
     let name = file_path.file_name().unwrap().display();
     info!("uploading: {}, file: {}", url, name);
 
-    let form = multipart::Form::new().file("file", file_path)?;
+    let file = File::open(file_path)?;
+    let pb = get_progress_bar(file.metadata().unwrap().len())?;
 
+    // 使用自定义的 ProgressRead 包裹文件读取
+    let progress_reader = ProgressRead {
+        inner: file,
+        progress: pb.clone(),
+    };
+
+    // 创建 multipart 表单数据
+    let full_name = file_path.display().to_string();
+    let form =
+        multipart::Form::new().part("file", Part::reader(progress_reader).file_name(full_name));
     // 上传文件到Gitee
     let upload_response = client
         .post(url)
         .header("Authorization", format!("token {}", token))
         .multipart(form)
         .send()?;
+    pb.finish_with_message("");
 
     if !upload_response.status().is_success() {
         bail!("上传文件失败: {}", file_path.file_name().unwrap().display());
@@ -149,11 +159,28 @@ pub fn upload(client: &Client, url: &str, token: &str, file_path: &PathBuf) -> A
     Ok(())
 }
 
-fn set_progress_bar_style(pb: &ProgressBar) -> AnyResult<()> {
+fn get_progress_bar(size: u64) -> AnyResult<ProgressBar> {
+    let pb = ProgressBar::new(size);
     pb.set_style(
         ProgressStyle::default_bar()
-            .template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {bytes}/{total_bytes} ({bytes_per_sec}, {eta})")?
+            .template("{elapsed_precise:.white.dim} [{elapsed_precise}] [{bar:40.cyan/blue}] {bytes}/{total_bytes} ({bytes_per_sec}, {eta})")?
             .progress_chars("#>-"),
     );
-    Ok(())
+    Ok(pb)
+}
+
+// 自定义实现 Read 来更新进度条
+struct ProgressRead<R> {
+    inner: R,
+    progress: ProgressBar,
+}
+
+impl<R: Read> Read for ProgressRead<R> {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        let n = self.inner.read(buf)?;
+        if n > 0 {
+            self.progress.inc(n as u64);
+        }
+        Ok(n)
+    }
 }

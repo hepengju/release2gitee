@@ -100,4 +100,3 @@ $ ./release2gitee --github-repo=release2gitee --gitee-repo=release2gitee
 - [sync-action](https://github.com/H-TWINKLE/sync-action)
 > 基于Python脚本实现，比较简单，但需要安装Python环境。而且github的打包机器上传gitee附件特别慢
 - [sync-release-gitee](https://github.com/trustedinster/sync-release-gitee/tree/v1.1)
-> 同上，基本一致

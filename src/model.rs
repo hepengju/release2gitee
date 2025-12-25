@@ -42,7 +42,14 @@ pub struct Cli {
     )]
     pub gitee_retain_release_count: usize,
 
-    // 是否将release body中的github仓库url替换为gitee仓库url
+    // 是否忽略同步版本小于Gitee仓库最大版本的
+    #[clap(
+        long,
+        env = "release2gitee__ignore_lt_gitee_max_version",
+        default_value_t = true
+    )]
+    pub ignore_lt_gitee_max_version: bool,
+
     #[clap(
         long,
         env = "release2gitee__release_body_url_replace",

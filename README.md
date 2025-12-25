@@ -5,9 +5,13 @@
 - 进度条显示: 下载上传附件都支持进度条显示
 - 操作幂等性: 所有步骤都可随意阻断或停止，可重复执行不影响（复用已下载的附件等）
 - 其他定制化:
-  * 支持替换response body 或 latest.json 文件中的github下载地址为gitee下载地址
+  * 支持替换response body 或 latest.json 文件中的github下载地址为gitee下载地址(默认为true)
   * 支持设置gitee releases保留个数，自动清理旧的标签
   * 可选设置github_token. 速率: 50 次/小时  ==> 3000 次/小时
+  * 可选设置比gitee最新版本小的不同步(默认为true)
+
+- TODO
+  * 日志日期显示Local时间
 
 ```shell
 # 推荐参数配置到环境变量中

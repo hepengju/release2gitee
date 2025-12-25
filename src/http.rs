@@ -65,6 +65,7 @@ fn post_or_patch<T: Serialize + ?Sized>(
         .header("Content-Type", "application/json")
         .json(json)
         .send()?;
+    debug!("param: {}", serde_json::to_string(json)?);
     let text = extract_response_text(res)?;
     debug!("response: {text}");
     Ok(text)
@@ -77,16 +78,9 @@ pub fn delete(client: &Client, url: &str, token: &str) -> AnyResult<()> {
         .header("Authorization", format!("token {}", token))
         .header("User-Agent", USER_AGENT)
         .send()?;
-    check_response(res)?;
+    let text = extract_response_text(res)?;
+    debug!("response: {text}");
     Ok(())
-}
-
-fn check_response(res: Response) -> AnyResult<()> {
-    if res.status().is_success() {
-        Ok(())
-    } else {
-        bail!("response err: {:?}", res)
-    }
 }
 
 fn extract_response_text(res: Response) -> AnyResult<String> {

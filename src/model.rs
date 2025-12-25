@@ -67,7 +67,7 @@ impl Display for Cli {
 
         write!(
             f,
-            "github_owner: {}, github_repo: {}, github_token: {}, gitee_owner: {}, gitee_repo: {}, gitee_token: {}, github_latest_release_count: {}, gitee_retain_release_count: {}, release_body_url_replace: {}, latest_json_url_replace: {}",
+            "github-owner: {}, github-repo: {}, github-token: {}, gitee-owner: {}, gitee-repo: {}, gitee-token: {}, github-latest-release-count: {}, gitee-retain-release-count: {}, release-body-url-replace: {}, latest-json-url-replace: {}",
             self.github_owner,
             self.github_repo,
             mask_token(self.github_token.clone()),

@@ -67,6 +67,13 @@ pub fn github_releases(client: &Client, cli: &Cli) -> AnyResult<Vec<Release>> {
     releases.sort_by_key(|r| r.id);
     releases.reverse(); // 倒序, 这样保证同步到gitee时，先处理旧的，再处理新的
 
+    // 如果body为空则设置为tag_name
+    for release in releases.iter_mut() {
+        if release.body.clone().unwrap_or_default().is_empty() {
+            release.body = Some(release.tag_name.clone());
+        }
+    }
+
     // 记录日志
     let tag_names = get_tags(&releases);
     info!("github releases获取最新的{}个: {}", releases.len(), tag_names.join(", "));
@@ -120,7 +127,9 @@ fn clean_oldest_gitee_releases(
             gitee_releases.len(),
             clean_count
         );
-        for release in gitee_releases.iter().skip(cli.gitee_retain_release_count) {
+
+        let skip_count = cli.gitee_retain_release_count - new_count;
+        for release in gitee_releases.iter().skip(skip_count) {
             gitee_release_delete(client, cli, release.id)?;
             info!("gitee release删除成功: {}", release.tag_name);
         }
@@ -180,12 +189,13 @@ fn gitee_release_create_or_update(
             //|| release.target_commitish != er.target_commitish
             //  ==> 某些场景下github返回的releases中target_commitish为master, 而gitee返回的为具体哈希值导致永远不一致，因此注释掉
         {
+            // gitee不允许body为空，因此如果body为空则使用tag_name
             let new_er = Release {
                 id: er.id,
                 tag_name: er.tag_name.clone(),
                 assets: er.assets.clone(),
                 name: release.name.clone(),
-                body: Some(new_body),
+                body: release.body.clone(),
                 prerelease: release.prerelease.clone(),
                 target_commitish: release.target_commitish.clone(),
             };

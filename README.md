@@ -1,4 +1,12 @@
-## Github的Release同步到Gitee
+## sync github releases to gitee releases
+- 体积非常小: 约6M
+- 执行速度快: 基于Rust编写, reqwest执行http请求
+- 跨平台支持: Windows、MacOS、Linux 等都可以支持
+- 进度条显示: 下载上传附件都支持进度条显示
+- 操作幂等性: 所有步骤都可随意阻断或停止，可重复执行不影响（复用已下载的附件等）
+- 其他定制化:
+  * 支持替换response body 或 latest.json 文件中的github下载地址为gitee下载地址
+  * 支持设置gitee releases保留个数，自动清理旧的标签
 
 ```shell
 # 推荐参数配置到环境变量中
@@ -16,7 +24,9 @@ export gitee_token=449cb0c5************************
 #export release2gitee__latest_json_url_replace=false
 
 source ~/.bashrc
+```
 
+```shell
 # 查看帮助
 $ ./release2gitee.exe --help
 sync github releases to gitee releases
@@ -50,7 +60,9 @@ Options:
           Print help
   -V, --version
           Print version
+```
 
+```shell
 # 执行同步（网络问题可能出错，可重试执行，会复用已下载的文件及对比release分支的内容和附件列表）
 $ ./release2gitee
 [2025-12-24T08:20:06Z INFO ] params: github_owner: hepengju, github_repo: release2gitee, gitee_owner: hepengju, gitee_repo: release2gitee, gitee_token: 449cb0c5************************, github_latest_release_count: 5, gitee_retain_release_count: 999, release_body_url_replace: true, latest_json_url_replace: true
@@ -84,11 +96,3 @@ $ ./release2gitee
 > 基于Python脚本实现，比较简单，但需要安装Python环境。而且github的打包机器上传gitee附件特别慢
 - [sync-release-gitee](https://github.com/trustedinster/sync-release-gitee/tree/v1.1)
 > 同上，基本一致
-
-# 分析
-> 仅仅调用几个API接口就可以实现，另外安装Python 或 Node等似乎有点大材小用
-> Tauri应用的自动升级，同步时还需要修改 latest.json 文件内容
-
-# 方案: 采用Rust实现编写cli可执行文件
-- 体积非常小: 在Github的action中, 直接选择 ubuntu-latest, 运行时间非常短
-- 跨平台支持: Windows、MacOS、Linux 等都可以方便的测试验证

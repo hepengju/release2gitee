@@ -7,6 +7,7 @@
 - 其他定制化:
   * 支持替换response body 或 latest.json 文件中的github下载地址为gitee下载地址
   * 支持设置gitee releases保留个数，自动清理旧的标签
+  * 可选设置github_token. 速率: 50 次/小时  ==> 3000 次/小时
 
 ```shell
 # 推荐参数配置到环境变量中
@@ -63,7 +64,8 @@ Options:
 ```
 
 ```shell
-# 执行同步（网络问题可能出错，可重试执行，会复用已下载的文件及对比release分支的内容和附件列表）
+# 示例: 执行同步 (参数配置到环境变量中)
+# 网络问题可能出错，可重试执行，会复用已下载的文件及对比release分支的内容和附件列表
 $ ./release2gitee
 [2025-12-24T08:20:06Z INFO ] params: github_owner: hepengju, github_repo: release2gitee, gitee_owner: hepengju, gitee_repo: release2gitee, gitee_token: 449cb0c5************************, github_latest_release_count: 5, gitee_retain_release_count: 999, release_body_url_replace: true, latest_json_url_replace: true
 [2025-12-24T08:20:06Z INFO ] GET: https://api.github.com/repos/hepengju/release2gitee/releases?per_page=5&page=1
@@ -83,6 +85,9 @@ $ ./release2gitee
 [2025-12-24T08:20:15Z INFO ] uploading: https://gitee.com/api/v5/repos/hepengju/release2gitee/releases/561151/attach_files, file: release2gitee.exe
 00:00:01 [#################################################################] 5.59 MiB/5.59 MiB (4.39 MiB/s, 0s)
 [2025-12-24T08:20:16Z INFO ] 同步程序执行完成
+
+# 示例: 执行同步 (参数配置到环境变量中，临时修改个别参数)
+$ ./release2gitee --github-repo=release2gitee --gitee-repo=release2gitee
 ```
 
 # 背景

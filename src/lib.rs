@@ -172,10 +172,10 @@ fn gitee_release_create_or_update(
         Ok(gitee_release_create(client, cli, &release)?)
     } else {
         let er = gitee_release.unwrap();
-        let new_body = replace_release_body_url(cli, release.body.clone());
+        let new_body = replace_release_body_url(cli, release.body.clone().unwrap_or_default());
 
         if release.name != er.name
-            || new_body != er.body
+            || new_body != er.body.clone().unwrap_or_default()
             || release.prerelease != er.prerelease
             //|| release.target_commitish != er.target_commitish
             //  ==> 某些场景下github返回的releases中target_commitish为master, 而gitee返回的为具体哈希值导致永远不一致，因此注释掉
@@ -185,7 +185,7 @@ fn gitee_release_create_or_update(
                 tag_name: er.tag_name.clone(),
                 assets: er.assets.clone(),
                 name: release.name.clone(),
-                body: new_body,
+                body: Some(new_body),
                 prerelease: release.prerelease.clone(),
                 target_commitish: release.target_commitish.clone(),
             };

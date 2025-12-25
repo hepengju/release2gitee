@@ -109,7 +109,7 @@ pub struct Release {
     pub id: u64,
     pub tag_name: String,
     pub name: String,
-    pub body: String,
+    pub body: Option<String>,
     pub prerelease: bool,
     pub target_commitish: String,
 

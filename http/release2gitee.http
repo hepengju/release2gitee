@@ -3,9 +3,9 @@
 
 # 变量定义
 @github_owner=hepengju
-@github_repo=redis-me
+@github_repo=release2gitee
 @gitee_owner=hepengju
-@gitee_repo=redis-me
+@gitee_repo=release2gitee
 @gitee_token={{$env.GITEE_TOKEN}}
 
 ### 获取Github仓库Releases信息

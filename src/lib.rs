@@ -177,7 +177,8 @@ fn gitee_release_create_or_update(
         if release.name != er.name
             || new_body != er.body
             || release.prerelease != er.prerelease
-            || release.target_commitish != er.target_commitish
+            //|| release.target_commitish != er.target_commitish
+            //  ==> 某些场景下github返回的releases中target_commitish为master, 而gitee返回的为具体哈希值导致永远不一致，因此注释掉
         {
             let new_er = Release {
                 id: er.id,

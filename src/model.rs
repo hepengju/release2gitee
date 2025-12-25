@@ -14,6 +14,9 @@ pub struct Cli {
     pub github_repo: String,
 
     #[clap(long, env)]
+    pub github_token: Option<String>,
+
+    #[clap(long, env)]
     pub gitee_owner: String,
 
     #[clap(long, env)]
@@ -61,27 +64,36 @@ pub struct Cli {
 
 impl Display for Cli {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let masked_token = if self.gitee_token.len() > 8 {
-            let prefix = &self.gitee_token[..8];
-            let asterisks = "*".repeat(self.gitee_token.len() - 8);
-            format!("{}{}", prefix, asterisks)
-        } else {
-            "*".repeat(self.gitee_token.len())
-        };
 
         write!(
             f,
-            "github_owner: {}, github_repo: {}, gitee_owner: {}, gitee_repo: {}, gitee_token: {}, github_latest_release_count: {}, gitee_retain_release_count: {}, release_body_url_replace: {}, latest_json_url_replace: {}",
+            "github_owner: {}, github_repo: {}, github_token: {}, gitee_owner: {}, gitee_repo: {}, gitee_token: {}, github_latest_release_count: {}, gitee_retain_release_count: {}, release_body_url_replace: {}, latest_json_url_replace: {}",
             self.github_owner,
             self.github_repo,
+            mask_token(self.github_token.clone()),
             self.gitee_owner,
             self.gitee_repo,
-            masked_token,
+            mask_token(Some(self.gitee_token.clone())),
             self.github_latest_release_count,
             self.gitee_retain_release_count,
             self.release_body_url_replace,
             self.latest_json_url_replace
         )
+    }
+}
+
+fn mask_token(token: Option<String>) -> String {
+    if token.is_none() {
+        return "None".to_string();
+    }
+
+    let token = token.unwrap();
+    if token.len() > 8 {
+        let prefix = &token[..8];
+        let asterisks = "*".repeat(token.len() - 8);
+        format!("{}{}", prefix, asterisks)
+    } else {
+        "*".repeat(token.len())
     }
 }
 

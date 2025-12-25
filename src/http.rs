@@ -21,9 +21,14 @@ pub fn init_client() -> AnyResult<Client> {
     Ok(client)
 }
 
-pub fn get(client: &Client, url: &str) -> AnyResult<String> {
+pub fn get(client: &Client, url: &str, token: Option<String>) -> AnyResult<String> {
     info!("GET: {url}");
-    let res = client.get(url).header("User-Agent", USER_AGENT).send()?;
+    let mut builder = client.get(url).header("User-Agent", USER_AGENT);
+    if token.is_some() {
+        // 可选设置github_token. 速率: 50 次/小时  ==> 3000 次/小时
+        builder = builder.header("Authorization", format!("token {}", token.unwrap()));
+    }
+    let res = builder.send()?;
     let text = extract_response_text(res)?;
     debug!("response: {}", text);
     Ok(text)

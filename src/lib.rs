@@ -62,7 +62,7 @@ pub fn github_releases(client: &Client, cli: &Cli) -> AnyResult<Vec<Release>> {
         "{}/{}/{}/releases?per_page={}&page=1",
         GITHUB_API_URL, cli.github_owner, cli.github_repo, cli.github_latest_release_count
     );
-    let result = http::get(client, &url)?;
+    let result = http::get(client, &url, cli.github_token.clone())?;
     let mut releases: Vec<Release> = serde_json::from_str(&result)?;
     releases.sort_by_key(|r| r.id);
     releases.reverse(); // 倒序, 这样保证同步到gitee时，先处理旧的，再处理新的
@@ -79,7 +79,7 @@ pub fn gitee_releases(client: &Client, cli: &Cli) -> AnyResult<Vec<Release>> {
         "{}/{}/{}/releases?per_page=100&page=1", // 最近100个
         GITEE_API_URL, cli.gitee_owner, cli.gitee_repo
     );
-    let result = http::get(client, &url)?;
+    let result = http::get(client, &url, Some(cli.gitee_token.clone()))?;
     let mut releases: Vec<Release> = serde_json::from_str(&result)?;
     releases.sort_by_key(|r| r.id);
     releases.reverse();

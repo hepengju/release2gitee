@@ -12,6 +12,7 @@
 #https://docs.github.com/zh/rest/releases/releases?apiVersion=2022-11-28#list-releases
 #可以指定page和per_page,每页大小最大100, 结果是倒序的
 GET {{github_api}}/{{github_owner}}/{{github_repo}}/releases?per_page=5&page=1
+Authorization: Bearer {{$env.GITHUB_TOKEN}}
 
 ### 获取Github仓库Release详细信息
 < {%

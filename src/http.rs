@@ -122,7 +122,7 @@ pub fn download(client: &Client, url: &str, file_path: &PathBuf) -> AnyResult<()
         pb.finish_with_message("");
         Ok(())
     } else {
-        bail!("下载文件失败: {}", file_path.file_name().unwrap().display());
+        bail!("download file error: {}", file_path.file_name().unwrap().display());
     }
 }
 
@@ -152,7 +152,7 @@ pub fn upload(client: &Client, url: &str, token: &str, file_path: &PathBuf) -> A
     pb.finish_with_message("");
 
     if !upload_response.status().is_success() {
-        bail!("上传文件失败: {}", file_path.file_name().unwrap().display());
+        bail!("upload file error: {}", file_path.file_name().unwrap().display());
     }
     Ok(())
 }

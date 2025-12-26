@@ -62,7 +62,7 @@ pub fn github_releases(client: &Client, cli: &Cli) -> AnyResult<Vec<Release>> {
     // 记录日志
     let tag_names = get_tags(&releases);
     info!(
-        "github releases获取最新的{}个: {}",
+        "github releases fetch {}: {}",
         releases.len(),
         tag_names.join(", ")
     );
@@ -83,7 +83,7 @@ pub fn gitee_releases(client: &Client, cli: &Cli) -> AnyResult<Vec<Release>> {
     // 记录日志
     let tag_names = get_tags(&releases);
     info!(
-        "gitee releases获取到{}个: {}",
+        "gitee releases fetch {}: {}",
         releases.len(),
         tag_names.join(", ")
     );
@@ -108,11 +108,11 @@ fn clean_oldest_gitee_releases(
 
     // 新同步的个数: github有，gitee没有的tag
     if cli.gitee_retain_release_count >= gitee_releases.len() {
-        info!("gitee releases 无需清理");
+        info!("gitee releases , no need to clean");
     } else {
         let clean_count = gitee_releases.len() + cli.gitee_retain_release_count;
         info!(
-            "gitee releases: {}个, 需清理: {}个",
+            "gitee releases: {}个, need clean count: {}",
             gitee_releases.len(),
             clean_count
         );
@@ -120,7 +120,7 @@ fn clean_oldest_gitee_releases(
         let skip_count = cli.gitee_retain_release_count;
         for release in gitee_releases.iter().skip(skip_count) {
             gitee_release_delete(client, cli, release.id)?;
-            info!("gitee release删除成功: {}", release.tag_name);
+            info!("gitee release delete success: {}", release.tag_name);
         }
     }
 
@@ -161,7 +161,7 @@ fn filter_github_releases(
                         Ok(ord) => {
                             if ord == Cmp::Gt || ord == Cmp::Eq {
                                 info!(
-                                    "github tag_name: {} <= {}, 无需同步",
+                                    "github tag_name: {} <= {}, ignore sync",
                                     release.tag_name, max_gitee_tag
                                 );
                                 false
@@ -171,7 +171,7 @@ fn filter_github_releases(
                         }
                         Err(_) => {
                             // 如果版本号比较失败，保留该发布（以防无法比较的情况）
-                            warn!("无法比较版本号: {} 与 {}", release.tag_name, max_gitee_tag);
+                            warn!("compare version error: {} and {}", release.tag_name, max_gitee_tag);
                             true
                         }
                     }
@@ -201,7 +201,7 @@ pub fn sync_release(
     let diff_asserts = &release_asserts_diff(release, gitee_release);
     if diff_asserts.is_empty() {
         let tag_name = &release.tag_name;
-        info!("gitee release与github release附件相同: {tag_name}!",);
+        info!("gitee/github release asserts is some: {tag_name}!",);
         return Ok(());
     }
 
@@ -253,7 +253,7 @@ fn gitee_release_create_or_update(
             Ok(new_er)
         } else {
             info!(
-                "gitee release与github release信息相同: {}!",
+                "gitee/github release name/body/prerelease is some: {}!",
                 &release.tag_name
             );
             Ok(er.clone())
@@ -268,7 +268,7 @@ fn gitee_release_update(client: &Client, cli: &Cli, er: &Release) -> AnyResult<(
     );
     let result = http::patch(client, &url, &cli.gitee_token, er)?;
     let release: Release = serde_json::from_str(&result)?;
-    info!("gitee release更新成功: {}!", &release.tag_name);
+    info!("gitee release update success: {}!", &release.tag_name);
     Ok(())
 }
 
@@ -279,7 +279,7 @@ fn gitee_release_create(client: &Client, cli: &Cli, release: &Release) -> AnyRes
     );
     let result = http::post(client, &url, &cli.gitee_token, release)?;
     let release: Release = serde_json::from_str(&result)?;
-    info!("gitee release创建成功: {}!", &release.tag_name);
+    info!("gitee release create success: {}!", &release.tag_name);
     Ok(release)
 }
 
@@ -315,7 +315,7 @@ fn download_release_asserts(
             if let Some(asset_size) = asset.size {
                 if let Ok(metadata) = fs::metadata(&file_path) {
                     if metadata.len() == asset_size {
-                        info!("文件已存在且大小一致，跳过下载: {}", &asset.name);
+                        info!("file exists and size is some, skip download: {}", &asset.name);
                         continue;
                     }
                 }
@@ -326,10 +326,10 @@ fn download_release_asserts(
 
         // 如果是latest.json, 则替换其中的下载地址
         if cli.latest_json_url_replace && asset.name == "latest.json" {
-            info!("latest.json文件替换里面的下载地址");
             let content = fs::read_to_string(&file_path)?;
             let content = replace_download_url(cli, content);
             fs::write(&file_path, content)?;
+            info!("latest.json's content is replaced (download url)");
         }
     }
     Ok(())
@@ -351,7 +351,7 @@ fn upload_release_asserts(
 
         // 检查文件是否存在
         if !file_path.exists() {
-            error!("本地文件不存在，跳过上传: {}", file_path.display());
+            error!("local file not exits, skip upload: {}", file_path.display());
             continue;
         }
 
@@ -373,9 +373,9 @@ fn tmp_dir_repo_tag(cli: &Cli, release: &Release) -> AnyResult<PathBuf> {
 
     if !tmp_dir.exists() {
         fs::create_dir_all(&tmp_dir)?;
-        info!("临时目录创建: {}", &tmp_dir.display())
+        info!("tmp dir create: {}", &tmp_dir.display())
     } else {
-        info!("临时目录存在: {}", &tmp_dir.display());
+        info!("tmp dir exits: {}", &tmp_dir.display());
     }
     Ok(tmp_dir)
 }

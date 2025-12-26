@@ -25,19 +25,19 @@ pub fn sync_github_releases_to_gitee(cli: &Cli) -> AnyResult<()> {
     // 2. 获取gitee的releases信息: 新的在前面
     let gitee_releases = &gitee_releases(client, cli)?;
 
-    // 3. 清理gitee中旧的release(免费的容量空间有限)
-    let gitee_releases = clean_oldest_gitee_releases(client, cli, gitee_releases, github_releases)?;
-
-    // 4. 计算哪些版本需要同步: ①保留前几个 ②比gitee最新版本小的忽略同步
+    // 3. 计算哪些版本需要同步: ①保留前几个 ②比gitee最新版本小的忽略同步
     let github_releases = filter_github_releases(cli, &gitee_releases, github_releases);
 
-    // 5. 循环release进行对比并同步: 倒序处理, 先同步旧的版本
+    // 4. 循环release进行对比并同步: 倒序处理, 先同步旧的版本
     for github_release in github_releases.iter().rev() {
         let gitee_release = gitee_releases
             .iter()
             .find(|gr| gr.tag_name == github_release.tag_name);
         sync_release(client, cli, github_release, gitee_release)?;
     }
+
+    // 5. 清理gitee中旧的release(免费的容量空间有限)
+    clean_oldest_gitee_releases(client, cli)?;
     Ok(())
 }
 
@@ -102,38 +102,29 @@ fn get_tags(releases: &Vec<Release>) -> Vec<String> {
 fn clean_oldest_gitee_releases(
     client: &Client,
     cli: &Cli,
-    gitee_releases: &Vec<Release>,
-    github_releases: &Vec<Release>,
-) -> AnyResult<Vec<Release>> {
-    // 新同步的个数: github有，gitee没有的tag
-    let github_tags = get_tags(github_releases);
-    let gitee_tags = get_tags(gitee_releases);
-    let new_count = github_tags
-        .iter()
-        .filter(|tag| !gitee_tags.contains(tag))
-        .count();
+) -> AnyResult<()> {
+    // 重新查询后清理
+    let gitee_releases = gitee_releases(client, cli)?;
 
-    let mut remain_gitee_releases = gitee_releases.clone();
-    if cli.gitee_retain_release_count >= (gitee_releases.len() + new_count) {
+    // 新同步的个数: github有，gitee没有的tag
+    if cli.gitee_retain_release_count >= gitee_releases.len() {
         info!("gitee releases 无需清理");
     } else {
-        let clean_count = gitee_releases.len() + new_count - cli.gitee_retain_release_count;
+        let clean_count = gitee_releases.len() + cli.gitee_retain_release_count;
         info!(
             "gitee releases: {}个, 需清理: {}个",
             gitee_releases.len(),
             clean_count
         );
 
-        let skip_count = cli.gitee_retain_release_count - new_count;
-        let mut remove_ids = vec![];
+        let skip_count = cli.gitee_retain_release_count;
         for release in gitee_releases.iter().skip(skip_count) {
             gitee_release_delete(client, cli, release.id)?;
             info!("gitee release删除成功: {}", release.tag_name);
-            remove_ids.push(release.id);
         }
-        remain_gitee_releases.retain(|release| !remove_ids.contains(&release.id));
     }
-    Ok(remain_gitee_releases)
+
+    Ok(())
 }
 
 /// 过滤Github仓库Release: 仅保留最新的N个, 且过滤掉版本小的

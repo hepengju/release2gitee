@@ -99,10 +99,7 @@ fn get_tags(releases: &Vec<Release>) -> Vec<String> {
 }
 
 /// 清理Gitee仓库最老的Releases: 查询最近100个，仅保留最新的N个
-fn clean_oldest_gitee_releases(
-    client: &Client,
-    cli: &Cli,
-) -> AnyResult<()> {
+fn clean_oldest_gitee_releases(client: &Client, cli: &Cli) -> AnyResult<()> {
     info!("clean gitee releases");
     // 重新查询后清理
     let gitee_releases = gitee_releases(client, cli)?;
@@ -173,7 +170,10 @@ fn filter_github_releases(
                         }
                         Err(_) => {
                             // 如果版本号比较失败，保留该发布（以防无法比较的情况）
-                            warn!("compare version error: {} and {}", release.tag_name, max_gitee_tag);
+                            warn!(
+                                "compare version error: {} and {}",
+                                release.tag_name, max_gitee_tag
+                            );
                             true
                         }
                     }
@@ -317,7 +317,10 @@ fn download_release_asserts(
             if let Some(asset_size) = asset.size {
                 if let Ok(metadata) = fs::metadata(&file_path) {
                     if metadata.len() == asset_size {
-                        info!("file exists and size is some, skip download: {}", &asset.name);
+                        info!(
+                            "file exists and size is some, skip download: {}",
+                            &asset.name
+                        );
                         continue;
                     }
                 }

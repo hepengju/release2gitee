@@ -71,7 +71,6 @@ pub struct Cli {
 
 impl Display for Cli {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-
         write!(
             f,
             "github-owner: {}, github-repo: {}, github-token: {}, gitee-owner: {}, gitee-repo: {}, gitee-token: {}, github-latest-release-count: {}, gitee-retain-release-count: {}, ignore-lt-gitee-max-version: {}, release-body-url-replace: {}, latest-json-url-replace: {}",

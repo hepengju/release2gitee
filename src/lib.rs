@@ -4,34 +4,16 @@ mod http;
 pub mod model;
 
 use crate::model::{Assert, Cli, Release};
-use anyhow::bail;
-use log::{error, info};
-use reqwest::blocking::{Client};
+use log::{error, info, warn};
+use reqwest::blocking::Client;
+use std::cmp::Ordering::Equal;
 use std::path::{Path, PathBuf};
 use std::{env, fs};
+use version_compare::{Cmp, compare};
 
 const GITHUB_API_URL: &str = "https://api.github.com/repos";
 const GITEE_API_URL: &str = "https://gitee.com/api/v5/repos";
 pub type AnyResult<T> = anyhow::Result<T>;
-
-pub fn check_cli(cli: &Cli) -> AnyResult<()> {
-    if cli.github_latest_release_count < 1 {
-        bail!("github_latest_release_count must be greater than 0.")
-    }
-
-    if cli.gitee_retain_release_count < 1 {
-        bail!("gitee_retain_release_count must be greater than 0.")
-    }
-
-    if cli.gitee_retain_release_count < cli.github_latest_release_count {
-        bail!(
-            "gitee_retain_release_count ({}) must be greater than or equal to github_latest_release_count ({}).",
-            cli.gitee_retain_release_count,
-            cli.github_latest_release_count
-        )
-    }
-    Ok(())
-}
 
 pub fn sync_github_releases_to_gitee(cli: &Cli) -> AnyResult<()> {
     // http请求较多，复用client
@@ -44,9 +26,12 @@ pub fn sync_github_releases_to_gitee(cli: &Cli) -> AnyResult<()> {
     let gitee_releases = &gitee_releases(client, cli)?;
 
     // 3. 清理gitee中旧的release(免费的容量空间有限)
-    clean_oldest_gitee_releases(client, cli, gitee_releases, github_releases)?;
+    let gitee_releases = clean_oldest_gitee_releases(client, cli, gitee_releases, github_releases)?;
 
-    // 4. 循环release进行对比并同步: 倒序处理, 先同步旧的版本
+    // 4. 计算哪些版本需要同步: ①保留前几个 ②比gitee最新版本小的忽略同步
+    let github_releases = filter_github_releases(cli, &gitee_releases, github_releases);
+
+    // 5. 循环release进行对比并同步: 倒序处理, 先同步旧的版本
     for github_release in github_releases.iter().rev() {
         let gitee_release = gitee_releases
             .iter()
@@ -76,7 +61,11 @@ pub fn github_releases(client: &Client, cli: &Cli) -> AnyResult<Vec<Release>> {
 
     // 记录日志
     let tag_names = get_tags(&releases);
-    info!("github releases获取最新的{}个: {}", releases.len(), tag_names.join(", "));
+    info!(
+        "github releases获取最新的{}个: {}",
+        releases.len(),
+        tag_names.join(", ")
+    );
     Ok(releases)
 }
 
@@ -93,7 +82,11 @@ pub fn gitee_releases(client: &Client, cli: &Cli) -> AnyResult<Vec<Release>> {
 
     // 记录日志
     let tag_names = get_tags(&releases);
-    info!("gitee releases获取到{}个: {}", releases.len(), tag_names.join(", "));
+    info!(
+        "gitee releases获取到{}个: {}",
+        releases.len(),
+        tag_names.join(", ")
+    );
     Ok(releases)
 }
 
@@ -111,15 +104,18 @@ fn clean_oldest_gitee_releases(
     cli: &Cli,
     gitee_releases: &Vec<Release>,
     github_releases: &Vec<Release>,
-) -> AnyResult<()> {
+) -> AnyResult<Vec<Release>> {
     // 新同步的个数: github有，gitee没有的tag
     let github_tags = get_tags(github_releases);
     let gitee_tags = get_tags(gitee_releases);
-    let new_count = github_tags.iter().filter(|tag| !gitee_tags.contains(tag)).count();
+    let new_count = github_tags
+        .iter()
+        .filter(|tag| !gitee_tags.contains(tag))
+        .count();
 
+    let mut remain_gitee_releases = gitee_releases.clone();
     if cli.gitee_retain_release_count >= (gitee_releases.len() + new_count) {
         info!("gitee releases 无需清理");
-        return Ok(());
     } else {
         let clean_count = gitee_releases.len() + new_count - cli.gitee_retain_release_count;
         info!(
@@ -129,12 +125,75 @@ fn clean_oldest_gitee_releases(
         );
 
         let skip_count = cli.gitee_retain_release_count - new_count;
+        let mut remove_ids = vec![];
         for release in gitee_releases.iter().skip(skip_count) {
             gitee_release_delete(client, cli, release.id)?;
             info!("gitee release删除成功: {}", release.tag_name);
+            remove_ids.push(release.id);
+        }
+        remain_gitee_releases.retain(|release| !remove_ids.contains(&release.id));
+    }
+    Ok(remain_gitee_releases)
+}
+
+/// 过滤Github仓库Release: 仅保留最新的N个, 且过滤掉版本小的
+fn filter_github_releases(
+    cli: &Cli,
+    gitee_releases: &Vec<Release>,
+    github_releases: &Vec<Release>,
+) -> Vec<Release> {
+    let mut retain_github_releases = github_releases.clone();
+
+    // 仅保留最新的N个用于同步
+    if cli.gitee_retain_release_count > retain_github_releases.len() {
+        retain_github_releases = retain_github_releases
+            .into_iter()
+            .take(cli.gitee_retain_release_count)
+            .collect();
+    }
+
+    // 计算gitee中最大的版本并输出（以tag_name为依据, version-compare的方法）
+    if cli.ignore_lt_gitee_max_version && !gitee_releases.is_empty() {
+        // 找到Gitee中版本最大的tag
+        if let Some(max_gitee_tag) = gitee_releases
+            .iter()
+            .map(|release| &release.tag_name)
+            .max_by(|a, b| compare(&a, &b).unwrap_or(Cmp::Eq).ord().unwrap_or(Equal))
+        {
+            info!("gitee max_tag_name: {}", max_gitee_tag);
+
+            // 过滤github中版本小的，并打印日志
+            retain_github_releases = retain_github_releases
+                .into_iter()
+                .filter(|release| {
+                    match compare(&max_gitee_tag, &release.tag_name) {
+                        Ok(ord) => {
+                            if ord == Cmp::Gt || ord == Cmp::Eq {
+                                info!(
+                                    "github tag_name: {} <= {}, 无需同步",
+                                    release.tag_name, max_gitee_tag
+                                );
+                                false
+                            } else {
+                                true
+                            }
+                        }
+                        Err(_) => {
+                            // 如果版本号比较失败，保留该发布（以防无法比较的情况）
+                            warn!("无法比较版本号: {} 与 {}", release.tag_name, max_gitee_tag);
+                            true
+                        }
+                    }
+                })
+                .collect();
         }
     }
-    Ok(())
+
+    info!(
+        "github releases retain count: {}",
+        retain_github_releases.len()
+    );
+    retain_github_releases
 }
 
 /// 同步Gitee仓库Release
@@ -186,8 +245,8 @@ fn gitee_release_create_or_update(
         if release.name != er.name
             || new_body != er.body.clone().unwrap_or_default()
             || release.prerelease != er.prerelease
-            //|| release.target_commitish != er.target_commitish
-            //  ==> 某些场景下github返回的releases中target_commitish为master, 而gitee返回的为具体哈希值导致永远不一致，因此注释掉
+        //|| release.target_commitish != er.target_commitish
+        //  ==> 某些场景下github返回的releases中target_commitish为master, 而gitee返回的为具体哈希值导致永远不一致，因此注释掉
         {
             // gitee不允许body为空，因此如果body为空则使用tag_name
             let new_er = Release {

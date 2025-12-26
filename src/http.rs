@@ -185,6 +185,7 @@ impl<R: Read> Read for ProgressRead<R> {
 
 #[cfg(test)]
 mod tests {
+    use version_compare::Version;
     use super::*;
     use crate::model::Release;
 
@@ -195,5 +196,19 @@ mod tests {
         let releases: Vec<Release> = serde_json::from_str(&result)?;
         println!("{:?}", releases);
         Ok(())
+    }
+
+    #[test]
+    fn test_version() {
+        assert_eq!(Version::from("1.2.3"), Version::from("v1.2.3"));
+        assert_eq!(Version::from("v0.9.1") > Version::from("v0.9.0"), true);
+        assert_eq!(Version::from("v0.9.11") > Version::from("v0.9.9"), true);
+        //assert_eq!(Version::from("v11.9.11") > Version::from("v9.9.9"), true);
+
+        println!("{:?}", Version::from("v0.9.1"));
+        println!("{:?}", Version::from("v11.9.1"));
+        println!("{:?}", Version::from("v9.9.1"));
+        println!("{:?}", Version::from("11.9.1"));
+        println!("{:?}", Version::from("9.9.1"));
     }
 }

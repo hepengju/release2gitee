@@ -22,3 +22,4 @@ anyhow = "1"
 log = "0.4.29"
 indicatif = { version = "0.17", features = ["improved_unicode"] }
 clap-verbosity-flag = "3.0.4"
+version-compare = "0.2.1"

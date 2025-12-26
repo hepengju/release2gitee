@@ -1,7 +1,7 @@
 use clap::Parser;
-use log::{info};
+use log::info;
 use release2gitee::model::Cli;
-use release2gitee::{check_cli, sync_github_releases_to_gitee};
+use release2gitee::sync_github_releases_to_gitee;
 
 // [Rust 中的命令行应用程序](https://cli.rust-lang.net.cn/book/index.html)
 fn main() -> anyhow::Result<()> {
@@ -13,7 +13,6 @@ fn main() -> anyhow::Result<()> {
         .init();
 
     info!("params: {cli}");
-    check_cli(cli)?;
 
     // 同步程序
     sync_github_releases_to_gitee(cli)?;

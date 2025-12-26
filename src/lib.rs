@@ -108,11 +108,11 @@ fn clean_oldest_gitee_releases(
 
     // 新同步的个数: github有，gitee没有的tag
     if cli.gitee_retain_release_count >= gitee_releases.len() {
-        info!("gitee releases , no need to clean");
+        info!("gitee releases no need to clean");
     } else {
         let clean_count = gitee_releases.len() + cli.gitee_retain_release_count;
         info!(
-            "gitee releases: {}个, need clean count: {}",
+            "gitee releases: {}, need clean count: {}",
             gitee_releases.len(),
             clean_count
         );

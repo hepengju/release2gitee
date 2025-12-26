@@ -10,9 +10,6 @@
   * 可选设置github_token. 速率: 50 次/小时  ==> 3000 次/小时
   * 可选设置比gitee最新版本小的不同步(默认为true)
 
-- TODO
-  * 日志日期显示Local时间
-
 ```shell
 # 推荐参数配置到环境变量中
 vim ~/.bashrc

@@ -5,10 +5,11 @@
 - 进度条显示: 下载上传附件都支持进度条显示
 - 操作幂等性: 所有步骤都可随意阻断或停止，可重复执行不影响（复用已下载的附件等）
 - 其他定制化:
-  * 支持替换response body 或 latest.json 文件中的github下载地址为gitee下载地址(默认为true)
-  * 支持设置gitee releases保留个数，自动清理旧的标签
-  * 可选设置github_token. 速率: 50 次/小时  ==> 3000 次/小时
+  * 可选配置是否支持替换response body 或 latest.json 文件中的github下载地址为gitee下载地址(默认为true)
+  * 可选设置gitee releases保留个数，自动清理旧的标签(默认999)
+  * 可选设置github_token. 速率: 50 次/小时 ==> 3000 次/小时(默认None)
   * 可选设置比gitee最新版本小的不同步(默认为true)
+  * 可选-v参数查看命令执行详细信息(默认info级别)
 
 ```shell
 # 推荐参数配置到环境变量中
@@ -20,10 +21,6 @@ export github_repo=redis-me
 export gitee_owner=hepengju
 export gitee_repo=redis-me
 export gitee_token=449cb0c5************************
-#export release2gitee__github_latest_release_count=5
-#export release2gitee__gitee_retain_release_count=5
-#export release2gitee__release_body_url_replace=false
-#export release2gitee__latest_json_url_replace=false
 
 source ~/.bashrc
 ```
@@ -46,14 +43,6 @@ Options:
           [env: GITEE_REPO=redis-me]
       --gitee-token <GITEE_TOKEN>
           [env: GITEE_TOKEN=449cb0c5************************]
-      --github-latest-release-count <GITHUB_LATEST_RELEASE_COUNT>
-          [env: release2gitee__github_latest_release_count=] [default: 5]
-      --gitee-retain-release-count <GITEE_RETAIN_RELEASE_COUNT>
-          [env: release2gitee__gitee_retain_release_count=] [default: 999]
-      --release-body-url-replace
-          [env: release2gitee__release_body_url_replace=]
-      --latest-json-url-replace
-          [env: release2gitee__latest_json_url_replace=]
   -v, --verbose...
           Increase logging verbosity
   -q, --quiet...

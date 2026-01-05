@@ -99,18 +99,17 @@ fn get_tags(releases: &Vec<Release>) -> Vec<String> {
 }
 
 /// 清理Gitee仓库最老的Releases: 查询最近100个，仅保留最新的N个
-fn clean_oldest_gitee_releases(
-    client: &Client,
-    cli: &Cli,
-) -> AnyResult<()> {
+fn clean_oldest_gitee_releases(client: &Client, cli: &Cli) -> AnyResult<()> {
+    info!("clean gitee releases");
     // 重新查询后清理
     let gitee_releases = gitee_releases(client, cli)?;
 
     // 新同步的个数: github有，gitee没有的tag
-    if cli.gitee_retain_release_count >= gitee_releases.len() {
-        info!("gitee releases no need to clean");
+    let count = cli.gitee_retain_release_count;
+    if count >= gitee_releases.len() {
+        info!("gitee releases retain count: {count}, no need to clean");
     } else {
-        let clean_count = gitee_releases.len() + cli.gitee_retain_release_count;
+        let clean_count = gitee_releases.len() - count;
         info!(
             "gitee releases: {}, need clean count: {}",
             gitee_releases.len(),
@@ -171,7 +170,10 @@ fn filter_github_releases(
                         }
                         Err(_) => {
                             // 如果版本号比较失败，保留该发布（以防无法比较的情况）
-                            warn!("compare version error: {} and {}", release.tag_name, max_gitee_tag);
+                            warn!(
+                                "compare version error: {} and {}",
+                                release.tag_name, max_gitee_tag
+                            );
                             true
                         }
                     }
@@ -315,7 +317,10 @@ fn download_release_asserts(
             if let Some(asset_size) = asset.size {
                 if let Ok(metadata) = fs::metadata(&file_path) {
                     if metadata.len() == asset_size {
-                        info!("file exists and size is some, skip download: {}", &asset.name);
+                        info!(
+                            "file exists and size is some, skip download: {}",
+                            &asset.name
+                        );
                         continue;
                     }
                 }

@@ -159,9 +159,9 @@ fn filter_github_releases(
                 .filter(|release| {
                     match compare(&max_gitee_tag, &release.tag_name) {
                         Ok(ord) => {
-                            if ord == Cmp::Gt || ord == Cmp::Eq {
+                            if ord == Cmp::Gt {
                                 info!(
-                                    "github tag_name: {} <= {}, ignore sync",
+                                    "github tag_name: {} < {}, ignore sync",
                                     release.tag_name, max_gitee_tag
                                 );
                                 false

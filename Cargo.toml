@@ -1,6 +1,6 @@
 [package]
 name = "release2gitee"
-version = "1.0.0"
+version = "1.0.1"
 edition = "2024"
 
 authors = ["he_pengju@163.com"]

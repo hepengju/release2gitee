@@ -203,7 +203,7 @@ pub fn sync_release(
     let diff_asserts = &release_asserts_diff(release, gitee_release);
     if diff_asserts.is_empty() {
         let tag_name = &release.tag_name;
-        info!("gitee/github release asserts is some: {tag_name}!",);
+        info!("gitee/github release asserts is some: {tag_name}",);
         return Ok(());
     }
 

@@ -1,15 +1,16 @@
 ## sync github releases to gitee releases
+
 - 体积非常小: 约6M
 - 执行速度快: 基于Rust编写, reqwest执行http请求
 - 跨平台支持: Windows、MacOS、Linux 等都可以支持
 - 进度条显示: 下载上传附件都支持进度条显示
 - 操作幂等性: 所有步骤都可随意阻断或停止，可重复执行不影响（复用已下载的附件等）
 - 其他定制化:
-  * 可选配置是否支持替换response body 或 latest.json 文件中的github下载地址为gitee下载地址(默认为true)
-  * 可选设置gitee releases保留个数，自动清理旧的标签(默认999)
-  * 可选设置github_token. 速率: 50 次/小时 ==> 3000 次/小时(默认None)
-  * 可选设置比gitee最新版本小的不同步(默认为true)
-  * 可选-v参数查看命令执行详细信息(默认info级别)
+    * 可选配置是否支持替换response body 或 latest.json 文件中的github下载地址为gitee下载地址(默认为true)
+    * 可选设置gitee releases保留个数，自动清理旧的标签(默认999)
+    * 可选设置github_token. 速率: 50 次/小时 ==> 3000 次/小时(默认None)
+    * 可选设置比gitee最新版本小的不同步(默认为true)
+    * 可选-v参数查看命令执行详细信息(默认info级别)
 
 ```shell
 # 推荐参数配置到环境变量中
@@ -81,12 +82,18 @@ $ ./release2gitee --github-repo=release2gitee --gitee-repo=release2gitee
 ```
 
 # 背景
+
 > 基于Tauri编写的桌面应用: [RedisME](https://github.com/hepengju/redis-me) 在Github打包发布，
-国内网络环境导致应用自动升级比较困难，故想将Github的Release同步到Gitee，方便用户下载与软件的自动升级。
+> 国内网络环境导致应用自动升级比较困难，故想将Github的Release同步到Gitee，方便用户下载与软件的自动升级。
 
 # 调研
+
 - [Gitee-Sync-Tool](https://github.com/XingHeYuZhuan/Gitee-Sync-Tool/blob/main/.github/workflows/gitee-batch-sync.yml)
+
 > 纯Shell脚本实现，有些特殊场景的处理，维护起来比较麻烦
+
 - [sync-action](https://github.com/H-TWINKLE/sync-action)
+
 > 基于Python脚本实现，比较简单，但需要安装Python环境。而且github的打包机器上传gitee附件特别慢
+
 - [sync-release-gitee](https://github.com/trustedinster/sync-release-gitee/tree/v1.1)

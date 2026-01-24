@@ -106,15 +106,11 @@ fn clean_oldest_gitee_releases(client: &Client, cli: &Cli) -> AnyResult<()> {
 
     // 新同步的个数: github有，gitee没有的tag
     let count = cli.gitee_retain_release_count;
-    if count >= gitee_releases.len() {
+    let release_count = gitee_releases.len();
+    if count >= release_count {
         info!("gitee releases retain count: {count}, no need to clean");
     } else {
-        let clean_count = gitee_releases.len() - count;
-        info!(
-            "gitee releases: {}, need clean count: {}",
-            gitee_releases.len(),
-            clean_count
-        );
+        info!("gitee releases retain count: {count}. now gitee releases: {release_count}, need clean",);
 
         let skip_count = cli.gitee_retain_release_count;
         for release in gitee_releases.iter().skip(skip_count) {

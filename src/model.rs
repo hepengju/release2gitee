@@ -65,6 +65,10 @@ pub struct Cli {
     )]
     pub latest_json_url_replace: bool,
 
+    // gitee仓库分支名称(创建release时的target_commitish), 不指定则自动获取默认分支
+    #[clap(long, env = "release2gitee__gitee_branch")]
+    pub gitee_branch: Option<String>,
+
     #[command(flatten)]
     pub verbosity: Verbosity<InfoLevel>,
 }
@@ -73,7 +77,7 @@ impl Display for Cli {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "github-owner: {}, github-repo: {}, github-token: {}, gitee-owner: {}, gitee-repo: {}, gitee-token: {}, github-latest-release-count: {}, gitee-retain-release-count: {}, ignore-lt-gitee-max-version: {}, release-body-url-replace: {}, latest-json-url-replace: {}",
+            "github-owner: {}, github-repo: {}, github-token: {}, gitee-owner: {}, gitee-repo: {}, gitee-token: {}, github-latest-release-count: {}, gitee-retain-release-count: {}, ignore-lt-gitee-max-version: {}, release-body-url-replace: {}, latest-json-url-replace: {}, gitee-branch: {}",
             self.github_owner,
             self.github_repo,
             mask_token(self.github_token.clone()),
@@ -84,7 +88,8 @@ impl Display for Cli {
             self.gitee_retain_release_count,
             self.ignore_lt_gitee_max_version,
             self.release_body_url_replace,
-            self.latest_json_url_replace
+            self.latest_json_url_replace,
+            self.gitee_branch.as_deref().unwrap_or("auto")
         )
     }
 }
@@ -122,4 +127,18 @@ pub struct Release {
 
     #[serde(skip_serializing)]
     pub assets: Vec<Assert>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct GiteeCreateReleaseRequest {
+    pub tag_name: String,
+    pub name: String,
+    pub body: String,
+    pub prerelease: bool,
+    pub target_commitish: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct GiteeRepo {
+    pub default_branch: String,
 }

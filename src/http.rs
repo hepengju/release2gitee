@@ -88,7 +88,10 @@ fn extract_response_text(res: Response) -> AnyResult<String> {
         let text = res.text()?;
         Ok(text)
     } else {
-        bail!("response err: {:?}", res)
+        let status = res.status();
+        let url = res.url().to_string();
+        let body = res.text().unwrap_or_default();
+        bail!("response err: status={}, url={}, body={}", status, url, body)
     }
 }
 

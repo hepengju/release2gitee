@@ -3,7 +3,7 @@ extern crate core;
 mod http;
 pub mod model;
 
-use crate::model::{Assert, Cli, Release};
+use crate::model::{Assert, Cli, GiteeCreateReleaseRequest, GiteeRepo, Release};
 use log::{error, info, warn};
 use reqwest::blocking::Client;
 use std::cmp::Ordering::Equal;
@@ -25,18 +25,27 @@ pub fn sync_github_releases_to_gitee(cli: &Cli) -> AnyResult<()> {
     // 2. 获取gitee的releases信息: 新的在前面
     let gitee_releases = &gitee_releases(client, cli)?;
 
-    // 3. 计算哪些版本需要同步: ①保留前几个 ②比gitee最新版本小的忽略同步
+    // 3. 获取gitee仓库分支(创建release时需要): 优先使用指定分支, 否则获取默认分支
+    let default_branch = match &cli.gitee_branch {
+        Some(branch) => {
+            info!("gitee branch (specified): {}", branch);
+            branch.clone()
+        }
+        None => gitee_default_branch(client, cli)?,
+    };
+
+    // 4. 计算哪些版本需要同步: ①保留前几个 ②比gitee最新版本小的忽略同步
     let github_releases = filter_github_releases(cli, &gitee_releases, github_releases);
 
-    // 4. 循环release进行对比并同步: 倒序处理, 先同步旧的版本
+    // 5. 循环release进行对比并同步: 倒序处理, 先同步旧的版本
     for github_release in github_releases.iter().rev() {
         let gitee_release = gitee_releases
             .iter()
             .find(|gr| gr.tag_name == github_release.tag_name);
-        sync_release(client, cli, github_release, gitee_release)?;
+        sync_release(client, cli, github_release, gitee_release, &default_branch)?;
     }
 
-    // 5. 清理gitee中旧的release(免费的容量空间有限)
+    // 6. 清理gitee中旧的release(免费的容量空间有限)
     clean_oldest_gitee_releases(client, cli)?;
     Ok(())
 }
@@ -191,9 +200,10 @@ pub fn sync_release(
     cli: &Cli,
     release: &Release,
     er: Option<&Release>,
+    default_branch: &str,
 ) -> AnyResult<()> {
     // 如果gitee的release不存在则创建, 存在且内容不一致则更新, 否则无需处理
-    let gitee_release = &gitee_release_create_or_update(client, cli, release, er)?;
+    let gitee_release = &gitee_release_create_or_update(client, cli, release, er, default_branch)?;
 
     // 如果gitee的release 和 github的release的附件完全一致，则无需处理
     let diff_asserts = &release_asserts_diff(release, gitee_release);
@@ -224,9 +234,10 @@ fn gitee_release_create_or_update(
     cli: &Cli,
     release: &Release,
     gitee_release: Option<&Release>,
+    default_branch: &str,
 ) -> AnyResult<Release> {
     if gitee_release.is_none() {
-        Ok(gitee_release_create(client, cli, &release)?)
+        Ok(gitee_release_create(client, cli, &release, default_branch)?)
     } else {
         let er = gitee_release.unwrap();
         let new_body = replace_release_body_url(cli, release.body.clone().unwrap_or_default());
@@ -270,15 +281,33 @@ fn gitee_release_update(client: &Client, cli: &Cli, er: &Release) -> AnyResult<(
     Ok(())
 }
 
-fn gitee_release_create(client: &Client, cli: &Cli, release: &Release) -> AnyResult<Release> {
+fn gitee_release_create(client: &Client, cli: &Cli, release: &Release, default_branch: &str) -> AnyResult<Release> {
     let url = format!(
         "{}/{}/{}/releases",
         GITEE_API_URL, cli.gitee_owner, cli.gitee_repo
     );
-    let result = http::post(client, &url, &cli.gitee_token, release)?;
+    let request = GiteeCreateReleaseRequest {
+        tag_name: release.tag_name.clone(),
+        name: release.name.clone(),
+        body: release.body.clone().unwrap_or_else(|| release.tag_name.clone()),
+        prerelease: release.prerelease,
+        target_commitish: default_branch.to_string(),
+    };
+    let result = http::post(client, &url, &cli.gitee_token, &request)?;
     let release: Release = serde_json::from_str(&result)?;
     info!("gitee release create success: {}!", &release.tag_name);
     Ok(release)
+}
+
+fn gitee_default_branch(client: &Client, cli: &Cli) -> AnyResult<String> {
+    let url = format!(
+        "{}/{}/{}",
+        GITEE_API_URL, cli.gitee_owner, cli.gitee_repo
+    );
+    let result = http::get(client, &url, Some(cli.gitee_token.clone()))?;
+    let repo: GiteeRepo = serde_json::from_str(&result)?;
+    info!("gitee default branch: {}", &repo.default_branch);
+    Ok(repo.default_branch)
 }
 
 /// 寻找附件差异: Github附件有，但Gitee没有的

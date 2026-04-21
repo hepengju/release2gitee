@@ -10,6 +10,7 @@
     * 可选设置gitee releases保留个数，自动清理旧的标签(默认999)
     * 可选设置github_token. 速率: 50 次/小时 ==> 3000 次/小时(默认None)
     * 可选设置比gitee最新版本小的不同步(默认为true)
+    * 可选指定gitee仓库分支名称，不指定则自动获取默认分支(默认auto)
     * 可选-v参数查看命令执行详细信息(默认info级别)
 
 ```shell
@@ -28,22 +29,36 @@ source ~/.bashrc
 
 ```shell
 # 查看帮助
-$ ./release2gitee.exe --help
+$ ./release2gitee --help
 sync github releases to gitee releases
 
-Usage: release2gitee.exe [OPTIONS] --github-owner <GITHUB_OWNER> --github-repo <GITHUB_REPO> --gitee-owner <GITEE_OWNER> --gitee-repo <GITEE_REPO> --gitee-token <GITEE_TOKEN>
+Usage: release2gitee [OPTIONS] --github-owner <GITHUB_OWNER> --github-repo <GITHUB_REPO> --gitee-owner <GITEE_OWNER> --gitee-repo <GITEE_REPO> --gitee-token <GITEE_TOKEN>
 
 Options:
       --github-owner <GITHUB_OWNER>
-          [env: GITHUB_OWNER=hepengju]
+          [env: GITHUB_OWNER=]
       --github-repo <GITHUB_REPO>
-          [env: GITHUB_REPO=redis-me]
+          [env: GITHUB_REPO=]
+      --github-token <GITHUB_TOKEN>
+          [env: GITHUB_TOKEN=]
       --gitee-owner <GITEE_OWNER>
-          [env: GITEE_OWNER=hepengju]
+          [env: GITEE_OWNER=]
       --gitee-repo <GITEE_REPO>
-          [env: GITEE_REPO=redis-me]
+          [env: GITEE_REPO=]
       --gitee-token <GITEE_TOKEN>
-          [env: GITEE_TOKEN=449cb0c5************************]
+          [env: GITEE_TOKEN=]
+      --github-latest-release-count <GITHUB_LATEST_RELEASE_COUNT>
+          [env: release2gitee__github_latest_release_count=] [default: 5]
+      --gitee-retain-release-count <GITEE_RETAIN_RELEASE_COUNT>
+          [env: release2gitee__gitee_retain_release_count=] [default: 999]
+      --ignore-lt-gitee-max-version
+          [env: release2gitee__ignore_lt_gitee_max_version=]
+      --release-body-url-replace
+          [env: release2gitee__release_body_url_replace=]
+      --latest-json-url-replace
+          [env: release2gitee__latest_json_url_replace=]
+      --gitee-branch <GITEE_BRANCH>
+          [env: release2gitee__gitee_branch=]
   -v, --verbose...
           Increase logging verbosity
   -q, --quiet...
@@ -79,6 +94,9 @@ $ ./release2gitee
 
 # 示例: 执行同步 (参数配置到环境变量中，临时修改个别参数)
 $ ./release2gitee --github-repo=release2gitee --gitee-repo=release2gitee
+
+# 示例: 指定gitee仓库分支名称
+$ ./release2gitee --gitee-branch master
 ```
 
 # 背景

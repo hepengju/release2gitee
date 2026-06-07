@@ -87,6 +87,7 @@ $ ./release2gitee --gitee-branch master
 3. **URL 替换**: body 中的 github.com → gitee.com 自动替换
 4. **速率控制**: 创建后延时 3 秒，保证 Gitee 上的顺序正确
 5. **节省空间**: 旧版本只保留元数据 + 2 个源码附件，删除额外附件
+6. **原子性操作**: 先下载所有附件再创建 Release，避免中间失败导致状态不一致
 
 ### 🎯 最终效果
 

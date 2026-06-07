@@ -221,7 +221,14 @@ pub fn sync_release_with_asset_control(
         return Ok(());
     }
     
-    // Release不存在，需要创建
+    // 如果需要上传附件，先下载到本地（避免创建Release后下载失败导致状态不一致）
+    if should_upload_assets && !release.assets.is_empty() {
+        info!("downloading assets first for: {}", release.tag_name);
+        download_release_asserts(client, cli, release, &release.assets)?;
+        info!("all assets downloaded successfully for: {}", release.tag_name);
+    }
+    
+    // 所有准备工作完成后，再创建Gitee Release
     let gitee_release = &gitee_release_create(client, cli, release, default_branch)?;
 
     // 如果不应该上传附件，直接返回
@@ -231,10 +238,7 @@ pub fn sync_release_with_asset_control(
         return Ok(());
     }
 
-    // 下载github附件到本地
-    download_release_asserts(client, cli, release, &release.assets)?;
-
-    // 上传附件到gitee
+    // 上传附件到gitee（文件已在本地，不会失败）
     upload_release_asserts(client, cli, release, gitee_release, &release.assets)?;
     Ok(())
 }

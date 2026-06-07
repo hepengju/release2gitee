@@ -3,7 +3,7 @@ extern crate core;
 mod http;
 pub mod model;
 
-use crate::model::{Assert, Cli, Release};
+use crate::model::{Assert, Cli, GiteeCreateReleaseRequest, GiteeRepo, Release};
 use log::{error, info};
 use reqwest::blocking::Client;
 use std::cmp::Ordering::Equal;
@@ -27,7 +27,16 @@ pub fn sync_github_releases_to_gitee(cli: &Cli) -> AnyResult<()> {
     // 2. 获取gitee的releases信息: 新的在前面
     let gitee_releases_before_clean = &gitee_releases(client, cli)?;
 
-    // 3. 获取需要同步的GitHub Releases（全部同步）
+    // 3. 获取gitee仓库分支(创建release时需要): 优先使用指定分支, 否则获取默认分支
+    let default_branch = match &cli.gitee_branch {
+        Some(branch) => {
+            info!("gitee branch (specified): {}", branch);
+            branch.clone()
+        }
+        None => gitee_default_branch(client, cli)?,
+    };
+    
+    // 4. 获取需要同步的GitHub Releases（全部同步）
     let github_releases_to_sync = github_releases.clone();
     info!("will sync {} releases from github", github_releases_to_sync.len());
     
@@ -61,8 +70,8 @@ pub fn sync_github_releases_to_gitee(cli: &Cli) -> AnyResult<()> {
     info!("will retain assets for {} releases: {:?}", tags_with_assets.len(), tags_with_assets);
     
     // 5. 先清理gitee中旧的release附件(释放空间，避免同步时容量不足)
-    //    只保留那些"最终应该带附件"的Release的附件
-    clean_oldest_gitee_releases(client, cli, gitee_releases_before_clean, &tags_with_assets_set)?;
+    //    只保留那些“最终应该带附件”的Release的附件
+    clean_oldest_gitee_releases(client, cli, gitee_releases_before_clean, &tags_with_assets_set, &default_branch)?;
 
     // 6. 清理后重新获取gitee的releases信息（因为清理操作可能改变了release的ID）
     let gitee_releases = &gitee_releases(client, cli)?;
@@ -76,7 +85,7 @@ pub fn sync_github_releases_to_gitee(cli: &Cli) -> AnyResult<()> {
         // 判断这个Release是否应该带附件
         let should_have_assets = tags_with_assets_set.contains(&github_release.tag_name);
         
-        sync_release_with_asset_control(client, cli, github_release, gitee_release, should_have_assets)?;
+        sync_release_with_asset_control(client, cli, github_release, gitee_release, should_have_assets, &default_branch)?;
     }
 
     info!("sync success finish");
@@ -143,7 +152,8 @@ fn get_tags(releases: &Vec<Release>) -> Vec<String> {
 /// 清理Gitee仓库最老的Releases附件: 仅保留指定的tags的附件
 /// gitee_releases: 已查询的gitee releases列表，避免重复查询
 /// tags_with_assets: 应该保留附件的tag列表（HashSet提高查找效率）
-fn clean_oldest_gitee_releases(client: &Client, cli: &Cli, gitee_releases: &[Release], tags_with_assets: &std::collections::HashSet<String>) -> AnyResult<()> {
+/// default_branch: Gitee仓库的默认分支
+fn clean_oldest_gitee_releases(client: &Client, cli: &Cli, gitee_releases: &[Release], tags_with_assets: &std::collections::HashSet<String>, default_branch: &str) -> AnyResult<()> {
     info!("clean gitee releases assets");
 
     let release_count = gitee_releases.len();
@@ -166,7 +176,6 @@ fn clean_oldest_gitee_releases(client: &Client, cli: &Cli, gitee_releases: &[Rel
                 let name = release.name.clone();
                 let body = release.body.clone();
                 let prerelease = release.prerelease;
-                let target_commitish = release.target_commitish.clone();
                 
                 // 删除旧的Release
                 gitee_release_delete(client, cli, release.id)?;
@@ -182,10 +191,10 @@ fn clean_oldest_gitee_releases(client: &Client, cli: &Cli, gitee_releases: &[Rel
                     name,
                     body,
                     prerelease,
-                    target_commitish,
+                    target_commitish: default_branch.to_string(), // 使用正确的分支
                     assets: vec![], // 不上传额外附件
                 };
-                gitee_release_create(client, cli, &new_release)?;
+                gitee_release_create(client, cli, &new_release, default_branch)?;
                 info!("gitee release recreated (only source assets): {}", tag_name);
             } else {
                 info!("release already cleaned (only source assets), skip: {}", release.tag_name);
@@ -203,6 +212,7 @@ pub fn sync_release_with_asset_control(
     release: &Release,
     er: Option<&Release>,
     should_upload_assets: bool,
+    default_branch: &str,
 ) -> AnyResult<()> {
     // 如果gitee的release已存在，直接跳过（不检查内容差异）
     if er.is_some() {
@@ -212,7 +222,7 @@ pub fn sync_release_with_asset_control(
     }
     
     // Release不存在，需要创建
-    let gitee_release = &gitee_release_create(client, cli, release)?;
+    let gitee_release = &gitee_release_create(client, cli, release, default_branch)?;
 
     // 如果不应该上传附件，直接返回
     if !should_upload_assets {
@@ -237,7 +247,7 @@ fn gitee_release_delete(client: &Client, cli: &Cli, id: u64) -> AnyResult<()> {
     http::delete(client, &url, &cli.gitee_token)
 }
 
-fn gitee_release_create(client: &Client, cli: &Cli, release: &Release) -> AnyResult<Release> {
+fn gitee_release_create(client: &Client, cli: &Cli, release: &Release, default_branch: &str) -> AnyResult<Release> {
     let url = format!(
         "{}/{}/{}/releases",
         GITEE_API_URL, cli.gitee_owner, cli.gitee_repo
@@ -245,17 +255,17 @@ fn gitee_release_create(client: &Client, cli: &Cli, release: &Release) -> AnyRes
     
     // 替换body中的URL
     let new_body = replace_release_body_url(cli, release.body.clone().unwrap_or_default());
-    let release_with_replaced_body = Release {
-        id: release.id,
+    
+    // 使用正确的target_commitish（Gitee仓库的实际分支）
+    let request = GiteeCreateReleaseRequest {
         tag_name: release.tag_name.clone(),
         name: release.name.clone(),
-        body: Some(new_body),
+        body: new_body,
         prerelease: release.prerelease,
-        target_commitish: release.target_commitish.clone(),
-        assets: release.assets.clone(),
+        target_commitish: default_branch.to_string(),
     };
     
-    let result = http::post(client, &url, &cli.gitee_token, &release_with_replaced_body)?;
+    let result = http::post(client, &url, &cli.gitee_token, &request)?;
     let release: Release = serde_json::from_str(&result)?;
     info!("gitee release create success: {}!", &release.tag_name);
     
@@ -263,6 +273,18 @@ fn gitee_release_create(client: &Client, cli: &Cli, release: &Release) -> AnyRes
     thread::sleep(Duration::from_secs(3));
     
     Ok(release)
+}
+
+/// 获取Gitee仓库的默认分支
+fn gitee_default_branch(client: &Client, cli: &Cli) -> AnyResult<String> {
+    let url = format!(
+        "{}/{}/{}",
+        GITEE_API_URL, cli.gitee_owner, cli.gitee_repo
+    );
+    let result = http::get(client, &url, Some(cli.gitee_token.clone()))?;
+    let repo: GiteeRepo = serde_json::from_str(&result)?;
+    info!("gitee default branch: {}", &repo.default_branch);
+    Ok(repo.default_branch)
 }
 
 /// 寻找附件差异: Github附件有，但Gitee没有的

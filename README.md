@@ -99,10 +99,6 @@ Gitee 上的 Release（假设配置保留2个）：
 └─ ...           → 同上
 ```
 
-# 示例: 执行同步 (参数配置到环境变量中，临时修改个别参数)
-$ ./release2gitee --github-repo=release2gitee --gitee-repo=release2gitee
-```
-
 # 背景
 
 > 基于Tauri编写的桌面应用: [RedisME](https://github.com/hepengju/redis-me) 在Github打包发布，

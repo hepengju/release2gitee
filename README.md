@@ -12,6 +12,7 @@
 - 其他定制化:
     * 可选配置是否支持替换 response body 或 latest.json 文件中的github下载地址为gitee下载地址(默认为true)
     * 可选设置github_token. 速率: 50 次/小时 ==> 3000 次/小时(默认None)
+    * 可选指定gitee仓库分支名称，不指定则自动获取默认分支(默认auto)
     * 可选-v参数查看命令执行详细信息(默认info级别)
 
 ```shell
@@ -37,6 +38,12 @@ source ~/.bashrc
 ```shell
 # 查看帮助
 $ ./release2gitee.exe --help
+
+# 示例: 执行同步 (参数配置到环境变量中，临时修改个别参数)
+$ ./release2gitee --github-repo=release2gitee --gitee-repo=release2gitee
+
+# 示例: 指定gitee仓库分支名称
+$ ./release2gitee --gitee-branch master
 ```
 
 ## 核心策略

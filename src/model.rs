@@ -42,14 +42,6 @@ pub struct Cli {
     )]
     pub gitee_retain_release_attach_files_count: usize,
 
-    // 是否忽略同步版本小于Gitee仓库最大版本的
-    #[clap(
-        long,
-        env = "release2gitee__ignore_lt_gitee_max_version",
-        default_value_t = true
-    )]
-    pub ignore_lt_gitee_max_version: bool,
-
     #[clap(
         long,
         env = "release2gitee__release_body_url_replace",
@@ -73,7 +65,7 @@ impl Display for Cli {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "github-owner: {}, github-repo: {}, github-token: {}, gitee-owner: {}, gitee-repo: {}, gitee-token: {}, github-latest-release-count: {}, gitee-retain-release-attach-files-count: {}, ignore-lt-gitee-max-version: {}, release-body-url-replace: {}, latest-json-url-replace: {}",
+            "github-owner: {}, github-repo: {}, github-token: {}, gitee-owner: {}, gitee-repo: {}, gitee-token: {}, github-latest-release-count: {}, gitee-retain-release-attach-files-count: {}, release-body-url-replace: {}, latest-json-url-replace: {}",
             self.github_owner,
             self.github_repo,
             mask_token(self.github_token.clone()),
@@ -82,7 +74,6 @@ impl Display for Cli {
             mask_token(Some(self.gitee_token.clone())),
             self.github_latest_release_count,
             self.gitee_retain_release_attach_files_count,
-            self.ignore_lt_gitee_max_version,
             self.release_body_url_replace,
             self.latest_json_url_replace
         )

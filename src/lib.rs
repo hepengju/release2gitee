@@ -4,10 +4,12 @@ mod http;
 pub mod model;
 
 use crate::model::{Assert, Cli, Release};
-use log::{error, info, warn};
+use log::{error, info};
 use reqwest::blocking::Client;
 use std::cmp::Ordering::Equal;
 use std::path::{Path, PathBuf};
+use std::thread;
+use std::time::Duration;
 use std::{env, fs};
 use version_compare::{Cmp, compare};
 
@@ -25,8 +27,9 @@ pub fn sync_github_releases_to_gitee(cli: &Cli) -> AnyResult<()> {
     // 2. 获取gitee的releases信息: 新的在前面
     let gitee_releases_before_clean = &gitee_releases(client, cli)?;
 
-    // 3. 计算哪些版本需要同步: ①比gitee最新版本小的忽略同步
-    let github_releases_to_sync = filter_github_releases(cli, gitee_releases_before_clean, github_releases);
+    // 3. 获取需要同步的GitHub Releases（全部同步）
+    let github_releases_to_sync = github_releases.clone();
+    info!("will sync {} releases from github", github_releases_to_sync.len());
     
     // 4. 合并所有需要考虑的Releases（已有的 + 新的），按版本号排序，确定哪些应该带附件
     let mut all_releases = gitee_releases_before_clean.clone();
@@ -161,6 +164,9 @@ fn clean_oldest_gitee_releases(client: &Client, cli: &Cli, gitee_releases: &[Rel
             gitee_release_delete(client, cli, release.id)?;
             info!("gitee release deleted (with assets): {}", tag_name);
             
+            // 睡眠1秒，避免删除后立即创建导致问题
+            thread::sleep(Duration::from_secs(1));
+            
             // 重新创建不带附件的Release
             let new_release = Release {
                 id: 0, // 创建时会分配新ID
@@ -177,61 +183,6 @@ fn clean_oldest_gitee_releases(client: &Client, cli: &Cli, gitee_releases: &[Rel
     }
 
     Ok(())
-}
-
-/// 过滤Github仓库Release: 过滤掉版本小的
-fn filter_github_releases(
-    cli: &Cli,
-    gitee_releases: &Vec<Release>,
-    github_releases: &Vec<Release>,
-) -> Vec<Release> {
-    let mut retain_github_releases = github_releases.clone();
-
-    // 计算gitee中最大的版本并输出（以tag_name为依据, version-compare的方法）
-    if cli.ignore_lt_gitee_max_version && !gitee_releases.is_empty() {
-        // 找到Gitee中版本最大的tag
-        if let Some(max_gitee_tag) = gitee_releases
-            .iter()
-            .map(|release| &release.tag_name)
-            .max_by(|a, b| compare(&a, &b).unwrap_or(Cmp::Eq).ord().unwrap_or(Equal))
-        {
-            info!("gitee max_tag_name: {}", max_gitee_tag);
-
-            // 过滤github中版本小的，并打印日志
-            retain_github_releases = retain_github_releases
-                .into_iter()
-                .filter(|release| {
-                    match compare(&max_gitee_tag, &release.tag_name) {
-                        Ok(ord) => {
-                            if ord == Cmp::Gt {
-                                info!(
-                                    "github tag_name: {} < {}, ignore sync",
-                                    release.tag_name, max_gitee_tag
-                                );
-                                false
-                            } else {
-                                true
-                            }
-                        }
-                        Err(_) => {
-                            // 如果版本号比较失败，保留该发布（以防无法比较的情况）
-                            warn!(
-                                "compare version error: {} and {}",
-                                release.tag_name, max_gitee_tag
-                            );
-                            true
-                        }
-                    }
-                })
-                .collect();
-        }
-    }
-
-    info!(
-        "github releases retain count: {}",
-        retain_github_releases.len()
-    );
-    retain_github_releases
 }
 
 /// 同步Gitee仓库Release（可控制是否上传附件）
@@ -358,6 +309,10 @@ fn gitee_release_create(client: &Client, cli: &Cli, release: &Release) -> AnyRes
     let result = http::post(client, &url, &cli.gitee_token, &release_with_replaced_body)?;
     let release: Release = serde_json::from_str(&result)?;
     info!("gitee release create success: {}!", &release.tag_name);
+    
+    // 睡眠3秒，避免创建速度太快导致顺序混乱
+    thread::sleep(Duration::from_secs(3));
+    
     Ok(release)
 }
 

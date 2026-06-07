@@ -150,35 +150,46 @@ fn clean_oldest_gitee_releases(client: &Client, cli: &Cli, gitee_releases: &[Rel
     
     info!("gitee releases count: {release_count}, will retain assets for {} releases", tags_with_assets.len());
 
-    // 删除不在tags_with_assets列表中的Release的附件
+    // 删除不在tags_with_assets列表中的Release的额外附件（保留源码附件）
     for release in gitee_releases {
-        if !tags_with_assets.contains(&release.tag_name) && !release.assets.is_empty() {
-            // 先删除Release（会同时删除附件），然后重新创建不带附件的Release
-            let tag_name = release.tag_name.clone();
-            let name = release.name.clone();
-            let body = release.body.clone();
-            let prerelease = release.prerelease;
-            let target_commitish = release.target_commitish.clone();
+        if !tags_with_assets.contains(&release.tag_name) {
+            // Gitee Release默认有2个源码附件（tarball + zipball）
+            // 如果assets数量>2，说明还有额外附件需要清理
+            let has_extra_assets = release.assets.len() > 2;
             
-            // 删除旧的Release
-            gitee_release_delete(client, cli, release.id)?;
-            info!("gitee release deleted (with assets): {}", tag_name);
-            
-            // 睡眠1秒，避免删除后立即创建导致问题
-            thread::sleep(Duration::from_secs(1));
-            
-            // 重新创建不带附件的Release
-            let new_release = Release {
-                id: 0, // 创建时会分配新ID
-                tag_name: tag_name.clone(),
-                name,
-                body,
-                prerelease,
-                target_commitish,
-                assets: vec![], // 清空附件
-            };
-            gitee_release_create(client, cli, &new_release)?;
-            info!("gitee release recreated (without assets): {}", tag_name);
+            if has_extra_assets {
+                info!("found release with extra assets to clean: {} (total assets: {}, will keep 2 source assets)", 
+                    release.tag_name, release.assets.len());
+                
+                // 先删除Release（会同时删除所有附件），然后重新创建不带额外附件的Release
+                let tag_name = release.tag_name.clone();
+                let name = release.name.clone();
+                let body = release.body.clone();
+                let prerelease = release.prerelease;
+                let target_commitish = release.target_commitish.clone();
+                
+                // 删除旧的Release
+                gitee_release_delete(client, cli, release.id)?;
+                info!("gitee release deleted: {}", tag_name);
+                
+                // 睡眠1秒，避免删除后立即创建导致问题
+                thread::sleep(Duration::from_secs(1));
+                
+                // 重新创建不带额外附件的Release（Gitee会自动添加2个源码附件）
+                let new_release = Release {
+                    id: 0, // 创建时会分配新ID
+                    tag_name: tag_name.clone(),
+                    name,
+                    body,
+                    prerelease,
+                    target_commitish,
+                    assets: vec![], // 不上传额外附件
+                };
+                gitee_release_create(client, cli, &new_release)?;
+                info!("gitee release recreated (only source assets): {}", tag_name);
+            } else {
+                info!("release already cleaned (only source assets), skip: {}", release.tag_name);
+            }
         }
     }
 
@@ -193,40 +204,29 @@ pub fn sync_release_with_asset_control(
     er: Option<&Release>,
     should_upload_assets: bool,
 ) -> AnyResult<()> {
-    // 如果gitee的release不存在则创建, 存在且内容不一致则更新, 否则无需处理
-    let gitee_release = &gitee_release_create_or_update(client, cli, release, er)?;
+    // 如果gitee的release已存在，直接跳过（不检查内容差异）
+    if er.is_some() {
+        let tag_name = &release.tag_name;
+        info!("gitee release already exists, skip: {tag_name}");
+        return Ok(());
+    }
+    
+    // Release不存在，需要创建
+    let gitee_release = &gitee_release_create(client, cli, release)?;
 
     // 如果不应该上传附件，直接返回
     if !should_upload_assets {
         let tag_name = &release.tag_name;
-        info!("gitee release created/updated without assets: {tag_name}");
-        return Ok(());
-    }
-
-    // 如果gitee的release 和 github的release的附件完全一致，则无需处理
-    let diff_asserts = &release_asserts_diff(release, gitee_release);
-    if diff_asserts.is_empty() {
-        let tag_name = &release.tag_name;
-        info!("gitee/github release asserts is some: {tag_name}",);
+        info!("gitee release created without assets: {tag_name}");
         return Ok(());
     }
 
     // 下载github附件到本地
-    download_release_asserts(client, cli, release, diff_asserts)?;
+    download_release_asserts(client, cli, release, &release.assets)?;
 
     // 上传附件到gitee
-    upload_release_asserts(client, cli, release, gitee_release, diff_asserts)?;
+    upload_release_asserts(client, cli, release, gitee_release, &release.assets)?;
     Ok(())
-}
-
-/// 同步Gitee仓库Release（默认上传附件）
-pub fn sync_release(
-    client: &Client,
-    cli: &Cli,
-    release: &Release,
-    er: Option<&Release>,
-) -> AnyResult<()> {
-    sync_release_with_asset_control(client, cli, release, er, true)
 }
 
 fn gitee_release_delete(client: &Client, cli: &Cli, id: u64) -> AnyResult<()> {
@@ -235,57 +235,6 @@ fn gitee_release_delete(client: &Client, cli: &Cli, id: u64) -> AnyResult<()> {
         GITEE_API_URL, cli.gitee_owner, cli.gitee_repo, id
     );
     http::delete(client, &url, &cli.gitee_token)
-}
-
-fn gitee_release_create_or_update(
-    client: &Client,
-    cli: &Cli,
-    release: &Release,
-    gitee_release: Option<&Release>,
-) -> AnyResult<Release> {
-    if gitee_release.is_none() {
-        Ok(gitee_release_create(client, cli, &release)?)
-    } else {
-        let er = gitee_release.unwrap();
-        let new_body = replace_release_body_url(cli, release.body.clone().unwrap_or_default());
-
-        if release.name != er.name
-            || new_body != er.body.clone().unwrap_or_default()
-            || release.prerelease != er.prerelease
-        //|| release.target_commitish != er.target_commitish
-        //  ==> 某些场景下github返回的releases中target_commitish为master, 而gitee返回的为具体哈希值导致永远不一致，因此注释掉
-        {
-            // gitee不允许body为空，因此如果body为空则使用tag_name
-            let new_er = Release {
-                id: er.id,
-                tag_name: er.tag_name.clone(),
-                assets: er.assets.clone(),
-                name: release.name.clone(),
-                body: Some(new_body), // 使用替换后的body
-                prerelease: release.prerelease.clone(),
-                target_commitish: release.target_commitish.clone(),
-            };
-            gitee_release_update(client, cli, &new_er)?;
-            Ok(new_er)
-        } else {
-            info!(
-                "gitee/github release name/body/prerelease is some: {}!",
-                &release.tag_name
-            );
-            Ok(er.clone())
-        }
-    }
-}
-
-fn gitee_release_update(client: &Client, cli: &Cli, er: &Release) -> AnyResult<()> {
-    let url = format!(
-        "{}/{}/{}/releases/{}",
-        GITEE_API_URL, cli.gitee_owner, cli.gitee_repo, er.id
-    );
-    let result = http::patch(client, &url, &cli.gitee_token, er)?;
-    let release: Release = serde_json::from_str(&result)?;
-    info!("gitee release update success: {}!", &release.tag_name);
-    Ok(())
 }
 
 fn gitee_release_create(client: &Client, cli: &Cli, release: &Release) -> AnyResult<Release> {
@@ -317,20 +266,6 @@ fn gitee_release_create(client: &Client, cli: &Cli, release: &Release) -> AnyRes
 }
 
 /// 寻找附件差异: Github附件有，但Gitee没有的
-fn release_asserts_diff(release: &Release, gitee_release: &Release) -> Vec<Assert> {
-    let mut diff_assets = Vec::new();
-    for asset in &release.assets {
-        if !gitee_release
-            .assets
-            .iter()
-            .any(|gitee_asset| gitee_asset.name == asset.name)
-        {
-            diff_assets.push(asset.clone());
-        }
-    }
-    diff_assets
-}
-
 /// 下载附件
 fn download_release_asserts(
     client: &Client,

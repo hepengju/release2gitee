@@ -5,11 +5,13 @@
 - 跨平台支持: Windows、MacOS、Linux 等都可以支持
 - 进度条显示: 下载上传附件都支持进度条显示
 - 操作幂等性: 所有步骤都可随意阻断或停止，可重复执行不影响（复用已下载的附件等）
+- 智能附件管理:
+    * 所有 Release 都会同步到 Gitee
+    * 仅保留最新 N 个 Release 的额外附件，其他只保留元数据 + 2个源码附件（节省存储空间）
+    * 通过 `gitee_retain_release_attach_files_count` 配置保留数量（默认3个）
 - 其他定制化:
-    * 可选配置是否支持替换response body 或 latest.json 文件中的github下载地址为gitee下载地址(默认为true)
-    * 可选设置gitee releases保留个数，自动清理旧的标签(默认999)
+    * 可选配置是否支持替换 response body 或 latest.json 文件中的github下载地址为gitee下载地址(默认为true)
     * 可选设置github_token. 速率: 50 次/小时 ==> 3000 次/小时(默认None)
-    * 可选设置比gitee最新版本小的不同步(默认为true)
     * 可选-v参数查看命令执行详细信息(默认info级别)
 
 ```shell
@@ -23,59 +25,72 @@ export gitee_owner=hepengju
 export gitee_repo=redis-me
 export gitee_token=449cb0c5************************
 
+# 可选配置
+export release2gitee__github_latest_release_count=99        # 从GitHub获取最新的N个Release（默认5）
+export release2gitee__gitee_retain_release_attach_files_count=3  # Gitee保留带附件的Release数量（默认3）
+export release2gitee__release_body_url_replace=true          # 是否替换body中的URL（默认true）
+export release2gitee__latest_json_url_replace=true           # 是否替换latest.json中的URL（默认true）
+
 source ~/.bashrc
 ```
 
 ```shell
 # 查看帮助
 $ ./release2gitee.exe --help
-sync github releases to gitee releases
-
-Usage: release2gitee.exe [OPTIONS] --github-owner <GITHUB_OWNER> --github-repo <GITHUB_REPO> --gitee-owner <GITEE_OWNER> --gitee-repo <GITEE_REPO> --gitee-token <GITEE_TOKEN>
-
-Options:
-      --github-owner <GITHUB_OWNER>
-          [env: GITHUB_OWNER=hepengju]
-      --github-repo <GITHUB_REPO>
-          [env: GITHUB_REPO=redis-me]
-      --gitee-owner <GITEE_OWNER>
-          [env: GITEE_OWNER=hepengju]
-      --gitee-repo <GITEE_REPO>
-          [env: GITEE_REPO=redis-me]
-      --gitee-token <GITEE_TOKEN>
-          [env: GITEE_TOKEN=449cb0c5************************]
-  -v, --verbose...
-          Increase logging verbosity
-  -q, --quiet...
-          Decrease logging verbosity
-  -h, --help
-          Print help
-  -V, --version
-          Print version
 ```
 
-```shell
-# 示例: 执行同步 (参数配置到环境变量中)
-# 网络问题可能出错，可重试执行，会复用已下载的文件及对比release分支的内容和附件列表
-$ ./release2gitee
-[2025-12-24T08:20:06Z INFO ] params: github_owner: hepengju, github_repo: release2gitee, gitee_owner: hepengju, gitee_repo: release2gitee, gitee_token: 449cb0c5************************, github_latest_release_count: 5, gitee_retain_release_count: 999, release_body_url_replace: true, latest_json_url_replace: true
-[2025-12-24T08:20:06Z INFO ] GET: https://api.github.com/repos/hepengju/release2gitee/releases?per_page=5&page=1
-[2025-12-24T08:20:07Z INFO ] github releases获取最新的2个: v0.9.0, v0.1.0
-[2025-12-24T08:20:07Z INFO ] GET: https://gitee.com/api/v5/repos/hepengju/release2gitee/releases?per_page=100&page=1
-[2025-12-24T08:20:08Z INFO ] gitee releases获取到1个: v0.1.0
-[2025-12-24T08:20:08Z INFO ] gitee releases 无需清理
-[2025-12-24T08:20:08Z INFO ] PATCH: https://gitee.com/api/v5/repos/hepengju/release2gitee/releases/560076
-[2025-12-24T08:20:08Z INFO ] gitee release更新成功: v0.1.0!
-[2025-12-24T08:20:08Z INFO ] gitee release与github release附件相同: v0.1.0!
-[2025-12-24T08:20:08Z INFO ] POST: https://gitee.com/api/v5/repos/hepengju/release2gitee/releases
-[2025-12-24T08:20:08Z INFO ] gitee release创建成功: v0.9.0!
-[2025-12-24T08:20:08Z INFO ] 临时目录创建: C:\Users\he_pe\AppData\Local\Temp\release2gitee\v0.9.0
-[2025-12-24T08:20:08Z INFO ] downloading: https://github.com/hepengju/release2gitee/releases/download/v0.9.0/release2gitee.exe
-00:00:04 [#################################################################] 5.59 MiB/5.59 MiB (1.16 MiB/s, 0s)
-[2025-12-24T08:20:15Z INFO ] 临时目录存在: C:\Users\he_pe\AppData\Local\Temp\release2gitee\v0.9.0
-[2025-12-24T08:20:15Z INFO ] uploading: https://gitee.com/api/v5/repos/hepengju/release2gitee/releases/561151/attach_files, file: release2gitee.exe
-00:00:01 [#################################################################] 5.59 MiB/5.59 MiB (4.39 MiB/s, 0s)
-[2025-12-24T08:20:16Z INFO ] 同步程序执行完成
+## 核心策略
+
+### 🎯 设计理念
+**所有 Release 都同步到 Gitee，但只有最新 N 个保留额外附件**
+
+### 📋 执行流程
+
+#### 1️⃣ 确定白名单
+- 合并 GitHub 和 Gitee 的所有 Releases
+- 按版本号排序（最新的在前）
+- 取前 N 个作为"带附件白名单"（由 `gitee_retain_release_attach_files_count` 配置）
+
+#### 2️⃣ 清理阶段
+遍历 Gitee 上已有的 Releases：
+```
+如果 Release 不在白名单中：
+  ├─ assets.len() > 2 → 有额外附件，需要清理
+  │   ├─ 删除 Release
+  │   ├─ 睡眠 1 秒
+  │   └─ 重新创建（不上传额外附件，Gitee 自动保留 2 个源码附件）
+  └─ assets.len() == 2 → 只有源码附件，已清理过，跳过 ✅
+```
+
+#### 3️⃣ 同步阶段
+遍历 GitHub 的 Releases：
+```
+如果 Release 已存在于 Gitee：
+  └─ 直接跳过 ✅（完全幂等）
+
+如果 Release 不存在：
+  ├─ 在白名单中 → 创建并上传所有附件
+  └─ 不在白名单 → 只创建元数据，不上传附件
+```
+
+### ✨ 关键特性
+
+1. **幂等性**: 第二次运行不会重复操作，所有已存在的 Release 都会被跳过
+2. **智能判断**: 通过 `assets.len() > 2` 准确识别是否有额外附件（Gitee 默认包含 2 个源码附件）
+3. **URL 替换**: body 中的 github.com → gitee.com 自动替换
+4. **速率控制**: 创建后延时 3 秒，保证 Gitee 上的顺序正确
+5. **节省空间**: 旧版本只保留元数据 + 2 个源码附件，删除额外附件
+
+### 🎯 最终效果
+
+```
+Gitee 上的 Release（假设配置保留2个）：
+├─ v3.8.0 (最新) → 元数据 + 2个源码附件 + N个额外附件 ✅
+├─ v3.7.0        → 元数据 + 2个源码附件 + N个额外附件 ✅
+├─ v3.6.0        → 元数据 + 2个源码附件（无额外附件）
+├─ v3.5.0        → 元数据 + 2个源码附件（无额外附件）
+└─ ...           → 同上
+```
 
 # 示例: 执行同步 (参数配置到环境变量中，临时修改个别参数)
 $ ./release2gitee --github-repo=release2gitee --gitee-repo=release2gitee

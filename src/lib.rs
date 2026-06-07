@@ -310,7 +310,7 @@ fn gitee_release_create_or_update(
                 tag_name: er.tag_name.clone(),
                 assets: er.assets.clone(),
                 name: release.name.clone(),
-                body: release.body.clone(),
+                body: Some(new_body), // 使用替换后的body
                 prerelease: release.prerelease.clone(),
                 target_commitish: release.target_commitish.clone(),
             };
@@ -342,7 +342,20 @@ fn gitee_release_create(client: &Client, cli: &Cli, release: &Release) -> AnyRes
         "{}/{}/{}/releases",
         GITEE_API_URL, cli.gitee_owner, cli.gitee_repo
     );
-    let result = http::post(client, &url, &cli.gitee_token, release)?;
+    
+    // 替换body中的URL
+    let new_body = replace_release_body_url(cli, release.body.clone().unwrap_or_default());
+    let release_with_replaced_body = Release {
+        id: release.id,
+        tag_name: release.tag_name.clone(),
+        name: release.name.clone(),
+        body: Some(new_body),
+        prerelease: release.prerelease,
+        target_commitish: release.target_commitish.clone(),
+        assets: release.assets.clone(),
+    };
+    
+    let result = http::post(client, &url, &cli.gitee_token, &release_with_replaced_body)?;
     let release: Release = serde_json::from_str(&result)?;
     info!("gitee release create success: {}!", &release.tag_name);
     Ok(release)

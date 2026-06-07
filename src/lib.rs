@@ -23,21 +23,60 @@ pub fn sync_github_releases_to_gitee(cli: &Cli) -> AnyResult<()> {
     let github_releases = &github_releases(client, cli)?;
 
     // 2. 获取gitee的releases信息: 新的在前面
+    let gitee_releases_before_clean = &gitee_releases(client, cli)?;
+
+    // 3. 计算哪些版本需要同步: ①比gitee最新版本小的忽略同步
+    let github_releases_to_sync = filter_github_releases(cli, gitee_releases_before_clean, github_releases);
+    
+    // 4. 合并所有需要考虑的Releases（已有的 + 新的），按版本号排序，确定哪些应该带附件
+    let mut all_releases = gitee_releases_before_clean.clone();
+    all_releases.extend(github_releases_to_sync.clone());
+    
+    // 按版本号排序（新的在前）
+    all_releases.sort_by(|a, b| {
+        compare(&b.tag_name, &a.tag_name)
+            .unwrap_or(Cmp::Eq)
+            .ord()
+            .unwrap_or(Equal)
+    });
+    
+    // 去重（以tag_name为准，保留第一个出现的）
+    let mut seen_tags = std::collections::HashSet::new();
+    all_releases.retain(|r| seen_tags.insert(r.tag_name.clone()));
+    
+    // 确定哪些tag应该带附件（最新的N个）
+    let retain_count = cli.gitee_retain_release_attach_files_count;
+    let tags_with_assets: Vec<String> = all_releases
+        .iter()
+        .take(retain_count)
+        .map(|r| r.tag_name.clone())
+        .collect();
+    
+    // 转换为HashSet以提高查找效率
+    let tags_with_assets_set: std::collections::HashSet<String> = tags_with_assets.iter().cloned().collect();
+    
+    info!("will retain assets for {} releases: {:?}", tags_with_assets.len(), tags_with_assets);
+    
+    // 5. 先清理gitee中旧的release附件(释放空间，避免同步时容量不足)
+    //    只保留那些"最终应该带附件"的Release的附件
+    clean_oldest_gitee_releases(client, cli, gitee_releases_before_clean, &tags_with_assets_set)?;
+
+    // 6. 清理后重新获取gitee的releases信息（因为清理操作可能改变了release的ID）
     let gitee_releases = &gitee_releases(client, cli)?;
 
-    // 3. 计算哪些版本需要同步: ①保留前几个 ②比gitee最新版本小的忽略同步
-    let github_releases = filter_github_releases(cli, &gitee_releases, github_releases);
-
-    // 4. 循环release进行对比并同步: 倒序处理, 先同步旧的版本
-    for github_release in github_releases.iter().rev() {
+    // 7. 循环release进行对比并同步: 倒序处理, 先同步旧的版本
+    for github_release in github_releases_to_sync.iter().rev() {
         let gitee_release = gitee_releases
             .iter()
             .find(|gr| gr.tag_name == github_release.tag_name);
-        sync_release(client, cli, github_release, gitee_release)?;
+        
+        // 判断这个Release是否应该带附件
+        let should_have_assets = tags_with_assets_set.contains(&github_release.tag_name);
+        
+        sync_release_with_asset_control(client, cli, github_release, gitee_release, should_have_assets)?;
     }
 
-    // 5. 清理gitee中旧的release(免费的容量空间有限)
-    clean_oldest_gitee_releases(client, cli)?;
+    info!("sync success finish");
     Ok(())
 }
 
@@ -98,45 +137,55 @@ fn get_tags(releases: &Vec<Release>) -> Vec<String> {
         .collect::<Vec<_>>()
 }
 
-/// 清理Gitee仓库最老的Releases: 查询最近100个，仅保留最新的N个
-fn clean_oldest_gitee_releases(client: &Client, cli: &Cli) -> AnyResult<()> {
-    info!("clean gitee releases");
-    // 重新查询后清理
-    let gitee_releases = gitee_releases(client, cli)?;
+/// 清理Gitee仓库最老的Releases附件: 仅保留指定的tags的附件
+/// gitee_releases: 已查询的gitee releases列表，避免重复查询
+/// tags_with_assets: 应该保留附件的tag列表（HashSet提高查找效率）
+fn clean_oldest_gitee_releases(client: &Client, cli: &Cli, gitee_releases: &[Release], tags_with_assets: &std::collections::HashSet<String>) -> AnyResult<()> {
+    info!("clean gitee releases assets");
 
-    // 新同步的个数: github有，gitee没有的tag
-    let count = cli.gitee_retain_release_count;
     let release_count = gitee_releases.len();
-    if count >= release_count {
-        info!("gitee releases retain count: {count}, no need to clean");
-    } else {
-        info!("gitee releases retain count: {count}. now gitee releases: {release_count}, need clean",);
+    
+    info!("gitee releases count: {release_count}, will retain assets for {} releases", tags_with_assets.len());
 
-        let skip_count = cli.gitee_retain_release_count;
-        for release in gitee_releases.iter().skip(skip_count) {
+    // 删除不在tags_with_assets列表中的Release的附件
+    for release in gitee_releases {
+        if !tags_with_assets.contains(&release.tag_name) && !release.assets.is_empty() {
+            // 先删除Release（会同时删除附件），然后重新创建不带附件的Release
+            let tag_name = release.tag_name.clone();
+            let name = release.name.clone();
+            let body = release.body.clone();
+            let prerelease = release.prerelease;
+            let target_commitish = release.target_commitish.clone();
+            
+            // 删除旧的Release
             gitee_release_delete(client, cli, release.id)?;
-            info!("gitee release delete success: {}", release.tag_name);
+            info!("gitee release deleted (with assets): {}", tag_name);
+            
+            // 重新创建不带附件的Release
+            let new_release = Release {
+                id: 0, // 创建时会分配新ID
+                tag_name: tag_name.clone(),
+                name,
+                body,
+                prerelease,
+                target_commitish,
+                assets: vec![], // 清空附件
+            };
+            gitee_release_create(client, cli, &new_release)?;
+            info!("gitee release recreated (without assets): {}", tag_name);
         }
     }
 
     Ok(())
 }
 
-/// 过滤Github仓库Release: 仅保留最新的N个, 且过滤掉版本小的
+/// 过滤Github仓库Release: 过滤掉版本小的
 fn filter_github_releases(
     cli: &Cli,
     gitee_releases: &Vec<Release>,
     github_releases: &Vec<Release>,
 ) -> Vec<Release> {
     let mut retain_github_releases = github_releases.clone();
-
-    // 仅保留最新的N个用于同步
-    if cli.gitee_retain_release_count > retain_github_releases.len() {
-        retain_github_releases = retain_github_releases
-            .into_iter()
-            .take(cli.gitee_retain_release_count)
-            .collect();
-    }
 
     // 计算gitee中最大的版本并输出（以tag_name为依据, version-compare的方法）
     if cli.ignore_lt_gitee_max_version && !gitee_releases.is_empty() {
@@ -185,15 +234,23 @@ fn filter_github_releases(
     retain_github_releases
 }
 
-/// 同步Gitee仓库Release
-pub fn sync_release(
+/// 同步Gitee仓库Release（可控制是否上传附件）
+pub fn sync_release_with_asset_control(
     client: &Client,
     cli: &Cli,
     release: &Release,
     er: Option<&Release>,
+    should_upload_assets: bool,
 ) -> AnyResult<()> {
     // 如果gitee的release不存在则创建, 存在且内容不一致则更新, 否则无需处理
     let gitee_release = &gitee_release_create_or_update(client, cli, release, er)?;
+
+    // 如果不应该上传附件，直接返回
+    if !should_upload_assets {
+        let tag_name = &release.tag_name;
+        info!("gitee release created/updated without assets: {tag_name}");
+        return Ok(());
+    }
 
     // 如果gitee的release 和 github的release的附件完全一致，则无需处理
     let diff_asserts = &release_asserts_diff(release, gitee_release);
@@ -209,6 +266,16 @@ pub fn sync_release(
     // 上传附件到gitee
     upload_release_asserts(client, cli, release, gitee_release, diff_asserts)?;
     Ok(())
+}
+
+/// 同步Gitee仓库Release（默认上传附件）
+pub fn sync_release(
+    client: &Client,
+    cli: &Cli,
+    release: &Release,
+    er: Option<&Release>,
+) -> AnyResult<()> {
+    sync_release_with_asset_control(client, cli, release, er, true)
 }
 
 fn gitee_release_delete(client: &Client, cli: &Cli, id: u64) -> AnyResult<()> {

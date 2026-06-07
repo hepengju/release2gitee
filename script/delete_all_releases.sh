@@ -19,39 +19,96 @@ echo "准备删除 Gitee 仓库 ${GITEE_OWNER}/${GITEE_REPO} 的所有 Release..
 echo "警告: 此操作不可逆！"
 echo ""
 
-# 获取所有 Release
+# 获取所有 Release（处理分页）
 echo "正在获取 Release 列表..."
-RELEASES=$(curl -s -X GET \
-  "https://gitee.com/api/v5/repos/${GITEE_OWNER}/${GITEE_REPO}/releases?per_page=100&page=1" \
-  -H "Authorization: token ${GITEE_TOKEN}")
+ALL_RELEASES_JSON="["
+PAGE=1
+PER_PAGE=100
+FIRST_PAGE=true
 
-# 检查是否获取成功
-if [ $? -ne 0 ]; then
-    echo "错误: 获取 Release 列表失败"
-    exit 1
-fi
-
-# 提取 Release ID 和 tag_name（使用更精确的匹配）
-# 先提取每个 release 对象，再从中提取 id 和 tag_name
-RELEASE_DATA=$(echo "$RELEASES" | grep -o '{[^}]*"tag_name":"[^"]*"[^}]*}' | while read -r line; do
-    ID=$(echo "$line" | grep -o '"id":[0-9]*' | head -1 | grep -o '[0-9]*')
-    TAG=$(echo "$line" | grep -o '"tag_name":"[^"]*"' | grep -o '"[^"]*"$' | tr -d '"')
-    if [ -n "$ID" ] && [ -n "$TAG" ]; then
-        echo "${ID}:${TAG}"
+while true; do
+    RELEASES=$(curl -s -X GET \
+      "https://gitee.com/api/v5/repos/${GITEE_OWNER}/${GITEE_REPO}/releases?per_page=${PER_PAGE}&page=${PAGE}" \
+      -H "Authorization: token ${GITEE_TOKEN}")
+    
+    # 检查是否获取成功
+    if [ $? -ne 0 ]; then
+        echo "错误: 获取 Release 列表失败"
+        exit 1
     fi
-done)
+    
+    # 如果返回空数组或错误，退出循环
+    if [ "$RELEASES" = "[]" ] || [ -z "$RELEASES" ]; then
+        break
+    fi
+    
+    # 移除开头的 [ 和结尾的 ]，然后添加到总数组中
+    RELEASES_TRIMMED=$(echo "$RELEASES" | sed '1s/^\[//' | sed '$s/\]$//')
+    
+    if [ "$FIRST_PAGE" = true ]; then
+        ALL_RELEASES_JSON="${ALL_RELEASES_JSON}${RELEASES_TRIMMED}"
+        FIRST_PAGE=false
+    else
+        ALL_RELEASES_JSON="${ALL_RELEASES_JSON},${RELEASES_TRIMMED}"
+    fi
+    
+    # 检查是否还有更多页面（简单判断：如果返回数量小于 per_page，说明是最后一页）
+    ITEM_COUNT=$(echo "$RELEASES" | grep -o '"id":' | wc -l)
+    if [ "$ITEM_COUNT" -lt "$PER_PAGE" ]; then
+        break
+    fi
+    
+    PAGE=$((PAGE + 1))
+done
 
-# 转换为数组
-IFS=$'\n' read -r -d '' -a DATA_ARRAY <<< "$RELEASE_DATA"
+ALL_RELEASES_JSON="${ALL_RELEASES_JSON}]"
 
-COUNT=${#DATA_ARRAY[@]}
-
-if [ "$COUNT" -eq 0 ]; then
+if [ "$ALL_RELEASES_JSON" = "[]" ]; then
     echo "没有找到任何 Release"
     exit 0
 fi
 
-echo "找到 ${COUNT} 个 Release:"
+# 提取 Release ID 和 tag_name
+# 使用更可靠的方式解析 JSON
+RELEASE_DATA=$(echo "$ALL_RELEASES_JSON" | python3 -c "
+import sys, json
+try:
+    data = json.load(sys.stdin)
+    if isinstance(data, list):
+        for item in data:
+            if 'id' in item and 'tag_name' in item:
+                print(f\"{item['id']}:{item['tag_name']}\")
+except:
+    pass
+" 2>/dev/null)
+
+# 如果 python3 不可用，回退到 grep 方式
+if [ -z "$RELEASE_DATA" ]; then
+    RELEASE_DATA=$(echo "$ALL_RELEASES_JSON" | grep -oP '"id":\s*\K[0-9]+(?=.*?"tag_name":\s*"([^"]*)")' | while read -r id_line; do
+        TAG=$(echo "$ALL_RELEASES_JSON" | grep -oP "\"id\":\s*${id_line}.*?\"tag_name\":\s*\"\K[^\"]+")
+        if [ -n "$TAG" ]; then
+            echo "${id_line}:${TAG}"
+        fi
+    done)
+fi
+
+# 转换为数组（过滤空行）
+IFS=$'\n' read -r -d '' -a DATA_ARRAY <<< "$(echo "$RELEASE_DATA" | grep -v '^$')"
+
+# 再次检查是否有有效数据
+VALID_COUNT=0
+for item in "${DATA_ARRAY[@]}"; do
+    if [ -n "$item" ]; then
+        VALID_COUNT=$((VALID_COUNT + 1))
+    fi
+done
+
+if [ "$VALID_COUNT" -eq 0 ]; then
+    echo "没有找到任何 Release"
+    exit 0
+fi
+
+echo "找到 ${VALID_COUNT} 个 Release:"
 declare -a IDS_ARRAY
 declare -a TAGS_ARRAY
 for i in "${!DATA_ARRAY[@]}"; do
